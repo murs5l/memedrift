@@ -21,17 +21,54 @@ ROOT = Path(__file__).resolve().parent
 PORT = int(os.environ.get("PORT", "8765"))
 MODEL = os.environ.get("CURSOR_MODEL", "composer-2.5")
 
-SYSTEM = """You explain a Reddit vocabulary map for curious students.
-Subreddits are linked when their post titles share vocabulary (TF-IDF / cosine). You get a focus node, an edge, or a path plus themes, signature words, and bridge keywords.
+SYSTEM = """You are explaining a Reddit vocabulary map to a curious student who keeps asking WHY.
 
-Write like a teacher, not a data dump:
-- Lead with the *why* (what kind of conversation overlap this map is showing), then use 1–2 concrete bridge words as evidence — not a catalogue of every neighbor.
-- Associations only; never claim causation or invent posts/events/sentiment.
-- Be concise: at most 2 short paragraphs (3–5 sentences total). Skip filler like “overall” and “this suggests that both communities were posting about…”.
-- Prefer interpretation: e.g. “they sit together because both were using headline language about X that month,” not a bullet list of sims and mention counts.
-- Light Markdown only: **bold** months, tracked words, and key bridge words. Name subs as r/name. No headings, lists, or code fences.
-- Do NOT edit files or use tools. Reply with the explanation only.
+How the map works (use this in your reasoning):
+- Communities (subreddits) sit near each other when their post *titles* share distinctive words (TF-IDF / cosine).
+- An edge’s bridge word is the vocabulary that pulls two subs together that month — not proof that one caused the other.
+- Themes (News, Finance, AI, …) are neighborhood labels; distance on the map ≈ different vocab worlds.
+
+Your job is to ANSWER THE WHY QUESTION, not recite the JSON:
+1. State the why in the first sentence (because…).
+2. Give a short chain of reasoning: shared topic/framing → bridge word(s) → why that puts these hosts in the same neighborhood that month.
+3. Use only the provided evidence (themes, signatures, bridge words, mention counts, snapshot). Do not invent posts, events, or sentiment.
+4. Associations only — never “X caused Y,” but you MAY say “they co-host this language because both were oriented toward [topic framing].”
+5. Concise: 2 short paragraphs, ~4–6 sentences total. Prefer insight over lists of similarities.
+6. Light Markdown: **bold** the month, the tracked word (if any), and the key bridge word(s). Subs as r/name. No headings, bullets, or code fences.
+7. Do NOT edit files or use tools. Reply with the explanation only.
 """
+
+
+def why_question(context: dict) -> str:
+    kind = context.get("kind") or "selection"
+    snap = context.get("snapshot") or "this month"
+    tracked = context.get("tracked_word")
+    track_bit = f' while tracking **{tracked}**' if tracked else ""
+    if kind == "edge":
+        nodes = context.get("nodes") or []
+        a = nodes[0]["id"] if len(nodes) > 0 else "?"
+        b = nodes[1]["id"] if len(nodes) > 1 else "?"
+        edges = context.get("edges") or []
+        bridge = (edges[0] or {}).get("bridge_word") if edges else None
+        bridge_bit = f' (bridge word “{bridge}”)' if bridge else ""
+        return (
+            f"WHY question: In {snap}{track_bit}, why are r/{a} and r/{b} linked on this map{bridge_bit}? "
+            f"What does that shared vocabulary imply about the kind of conversation they were both in?"
+        )
+    if kind == "path":
+        nodes = context.get("nodes") or []
+        chain = " → ".join(f"r/{n.get('id')}" for n in nodes if n.get("id"))
+        return (
+            f"WHY question: In {snap}{track_bit}, why does this path exist ({chain})? "
+            f"What does each hop’s bridge word tell us about how attention/language moves between these neighborhoods?"
+        )
+    # focus
+    nodes = context.get("nodes") or []
+    nid = nodes[0]["id"] if nodes else "?"
+    return (
+        f"WHY question: In {snap}{track_bit}, why does r/{nid} sit where it sits among its neighbors? "
+        f"What do the neighbor bridge words reveal about the conversational world it belongs to that month?"
+    )
 
 
 def load_dotenv():
@@ -56,8 +93,11 @@ def cursor_explain(api_key: str, context: dict, model: str) -> str:
 
     prompt = (
         SYSTEM
-        + "\n\n---\nExplain this selection on the Meme Drift map.\n\n"
+        + "\n\n---\n"
+        + why_question(context)
+        + "\n\nEvidence from the map (reason from this; do not dump it back):\n"
         + json.dumps(context, ensure_ascii=False, indent=2)
+        + "\n\nAnswer the WHY question first. Then support it briefly with the strongest bridge-word evidence."
     )
     # Empty sandbox cwd: agent has nothing to edit; answer from the prompt only.
     with tempfile.TemporaryDirectory(prefix="memedrift-explain-") as tmp:
