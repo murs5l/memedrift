@@ -531,10 +531,10 @@
   }
 
   function drawAnnot() {
-    clearAnnot();
-    if (!storyAnnotIds || !storyAnnotIds.length) return;
+    if (!storyAnnotIds || !storyAnnotIds.length) { clearAnnot(); return; }
     if (typeof g === "undefined" || typeof sim === "undefined" || typeof d3 === "undefined") return;
-    const layer = g.append("g").attr("id", "story-annot").attr("pointer-events", "none");
+    let layer = g.select("#story-annot");
+    if (layer.empty()) layer = g.append("g").attr("id", "story-annot").attr("pointer-events", "none");
     const data = sim.nodes().filter(n => storyAnnotIds.includes(n.id));
     layer.selectAll("circle")
       .data(data, d => d.id)

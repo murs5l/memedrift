@@ -1,7 +1,7 @@
 <meta charset="utf-8">
 <title>Meme Drift - Zeitgeist</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600&family=IBM+Plex+Sans:wght@400;500&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
-<link rel="stylesheet" href="app/ui.css?v=ym6">
+<link rel="stylesheet" href="app/ui.css?v=ym7">
 <link rel="stylesheet" href="app/story.css?v=4">
 
 <svg id="stage" aria-label="Subreddit vocabulary map"></svg>
@@ -79,7 +79,7 @@
 <div id="tip"></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
-<script src="data/data.js?v=partial1"></script>
+<script src="data/data.js?v=perf1"></script>
 <script>
 const D = window.DATA;
 const N = D.snapshots.length;
@@ -117,7 +117,10 @@ $("#spread").style.gridTemplateColumns = `repeat(${N}, 1fr)`;   // one bar per s
 const svg = d3.select("#stage");
 const g = svg.append("g");
 const linkG = g.append("g"), haloG = g.append("g"), nodeG = g.append("g"), labelG = g.append("g"), keyG = g.append("g");
-const zoom = d3.zoom().scaleExtent([.1, 6]).filter(e => !(e.type === "wheel" && e.shiftKey) && (!e.ctrlKey || e.type === "wheel") && !e.button).on("zoom", e => { g.attr("transform", e.transform); if (Math.abs(e.transform.k - k) > .05) { k = e.transform.k; restyle(); } });
+const zoom = d3.zoom().scaleExtent([.1, 6]).filter(e => !(e.type === "wheel" && e.shiftKey) && (!e.ctrlKey || e.type === "wheel") && !e.button).on("zoom", e => {
+  g.attr("transform", e.transform);
+  if (Math.abs(e.transform.k - k) > .05) { k = e.transform.k; restyleLabelsOnly(); }
+});
 svg.call(zoom).on("click", () => { focus = null; picked = null; pathLinks = null; restyle(); });
 
 const W = () => innerWidth, H = () => innerHeight;
@@ -141,7 +144,12 @@ const sim = d3.forceSimulation()
     link.attr("x1", l => l.source.x).attr("y1", l => l.source.y).attr("x2", l => l.target.x).attr("y2", l => l.target.y);
     node.attr("cx", d => d.x).attr("cy", d => d.y);
     halo.attr("cx", d => d.x).attr("cy", d => d.y);
-    label.attr("x", d => d.x).attr("y", d => d.y - radius(d.subs) - 4);
+    // Skip labels that are hidden — most of the 512 stay at opacity 0.
+    label.each(function (d) {
+      if (+this.getAttribute("opacity") === 0) return;
+      this.setAttribute("x", d.x);
+      this.setAttribute("y", d.y - radius(d.subs) - 4);
+    });
     key.attr("x", l => (l.source.x + l.target.x) / 2).attr("y", l => (l.source.y + l.target.y) / 2 - 3);
   });
 addEventListener("resize", () => sim.force("center").x(W() / 2).y(H() / 2));
@@ -160,7 +168,7 @@ function heat(n) {   // blended between the two snapshots around tf, so halos gr
   const [i0, i1, f] = span();
   return heatAt(n, i0) * (1 - f) + heatAt(n, i1) * f;
 }
-const linksOf = id => D.links.filter(l => l.history[t] && (l.source.id === id || l.target.id === id));
+const linksOf = id => linksByNode.get(id) || [];
 const other = (l, id) => l.source.id === id ? l.target : l.source;
 
 // --- render at snapshot t ------------------------------------------------
@@ -168,6 +176,37 @@ const other = (l, id) => l.source.id === id ? l.target : l.source;
 const span = () => { const i0 = Math.floor(tf), i1 = Math.min(N - 1, i0 + 1); return [i0, i1, tf - i0]; };
 const valueAt = l => { const [i0, i1, f] = span(); return l.history[i0] * (1 - f) + l.history[i1] * f; };
 let liveLinks_ = [];
+let linksByNode = new Map();
+let spreadCacheKey = "";
+let outbreakCacheKey = "";
+let lastPanelSig = "";
+
+function rebuildAdj() {
+  linksByNode = new Map();
+  for (const l of liveLinks_) {
+    const a = l.source.id ?? l.source, b = l.target.id ?? l.target;
+    if (!linksByNode.has(a)) linksByNode.set(a, []);
+    if (!linksByNode.has(b)) linksByNode.set(b, []);
+    linksByNode.get(a).push(l);
+    linksByNode.get(b).push(l);
+  }
+}
+
+function catsKey() { return [...activeCats].sort().join(","); }
+
+function computeHeats() {
+  if (!query) return { heats: null, hot: new Set(), hmax: 1 };
+  const heats = new Map();
+  const hot = new Set();
+  let hmax = 1;
+  // Only live (simulated) nodes matter for style; skip the full 512×vocab scan when possible.
+  const pool = sim.nodes().length ? sim.nodes() : D.nodes;
+  for (const n of pool) {
+    const h = heat(n);
+    if (h > 0) { heats.set(n.id, h); hot.add(n.id); if (h > hmax) hmax = h; }
+  }
+  return { heats, hot, hmax };
+}
 
 function update() {
   const [i0, i1] = span();
@@ -182,6 +221,7 @@ function update() {
   });
   links.forEach(l => l.value = valueAt(l));
   liveLinks_ = links;
+  rebuildAdj();
 
   link = link.data(links, l => (l.source.id ?? l.source) + "|" + (l.target.id ?? l.target));
   link.exit().remove();
@@ -237,30 +277,30 @@ function showTime() {
 // move to any fractional time; cheap path while we stay between the same two snapshots
 function setTime(x) {
   const before = Math.floor(tf);
+  const prevT = t;
   tf = Math.max(0, Math.min(N - 1, x));
   t = Math.round(tf);
   if (Math.floor(tf) !== before) return update();   // the set of live lines changed
   liveLinks_.forEach(l => l.value = valueAt(l));
-  sim.force("link").distance(restLength).strength(l => .1 + .9 * l.value / vmax);   // re-read the new values
-  sim.alpha(Math.max(sim.alpha(), .12)).restart();
+  sim.force("link").distance(restLength).strength(l => .1 + .9 * l.value / vmax);
+  // Don't reheat every scrub/play frame — only nudge if the sim has nearly cooled.
+  if (sim.alpha() < 0.03) sim.alpha(0.05).restart();
   link.attr("stroke-width", l => 1 + 4 * l.value / vmax);
   showTime();
-  restyle();
+  restyleScrub(prevT !== t);
 }
 
-function restyle() {
-  const heats = new Map(D.nodes.map(n => [n.id, heat(n)]));
-  const hmax = d3.max([...heats.values()]) || 1;
-  const hot = new Set([...heats].filter(([, h]) => h > 0).map(([id]) => id));
-  const fl = focus ? linksOf(focus) : (pathLinks || []);          // lines that get a keyword label
+function styleFromHeats(heats, hot, hmax) {
+  const fl = focus ? linksOf(focus) : (pathLinks || []);
   const near = focus ? new Set([focus, ...fl.map(l => other(l, focus).id)])
              : pathLinks ? new Set(pathLinks.flatMap(l => [l.source.id, l.target.id])) : null;
-  const lit = l => focus ? l.source.id === focus || l.target.id === focus : !!pathLinks && pathLinks.includes(l);
+  const pathSet = pathLinks ? new Set(pathLinks) : null;
+  const lit = l => focus ? l.source.id === focus || l.target.id === focus : !!(pathSet && pathSet.has(l));
   const show = n => (!near || near.has(n.id)) && (!query || hot.has(n.id));
-  // labels: big bubbles always, everything once zoomed in, plus whatever is lit up
   const labelled = n => hot.has(n.id) || near?.has(n.id) || radius(n.subs) * k > 9 || k > 2.2;
+  const hget = n => (heats && heats.get(n.id)) || 0;
 
-  halo.attr("r", n => hot.has(n.id) ? radius(n.subs) + 4 + 26 * heats.get(n.id) / hmax : 0);
+  halo.attr("r", n => hot.has(n.id) ? radius(n.subs) + 4 + 26 * hget(n) / hmax : 0);
   node.attr("opacity", n => show(n) ? 1 : .12)
       .attr("stroke", n => hot.has(n.id) ? "var(--accent)" : focus === n.id || (pathLinks && near?.has(n.id)) ? "#fff" : "var(--ink)");
   label.attr("opacity", n => show(n) && labelled(n) ? 1 : 0);
@@ -270,8 +310,34 @@ function restyle() {
     return .08 + .4 * l.value / vmax;
   }).attr("stroke", l => (query && hot.has(l.source.id) && hot.has(l.target.id)) || (near && lit(l)) ? "var(--accent)" : "#5b6b86")
     .style("pointer-events", l => (near && !lit(l)) || (query && !(hot.has(l.source.id) && hot.has(l.target.id))) ? "none" : "stroke");
+  return fl;
+}
 
-  // the exact keyword on each of the focused node's lines
+function restyleLabelsOnly() {
+  const { heats, hot, hmax } = computeHeats();
+  const fl = focus ? linksOf(focus) : (pathLinks || []);
+  const near = focus ? new Set([focus, ...fl.map(l => other(l, focus).id)])
+             : pathLinks ? new Set(pathLinks.flatMap(l => [l.source.id, l.target.id])) : null;
+  const show = n => (!near || near.has(n.id)) && (!query || hot.has(n.id));
+  const labelled = n => hot.has(n.id) || near?.has(n.id) || radius(n.subs) * k > 9 || k > 2.2;
+  label.attr("opacity", n => show(n) && labelled(n) ? 1 : 0);
+}
+
+function restyleScrub(tChanged) {
+  const { heats, hot, hmax } = computeHeats();
+  const fl = styleFromHeats(heats, hot, hmax);
+  markSpreadNow();
+  if (query) {
+    const total = D.nodes.filter(alive).length;
+    $("#count").textContent = `${[...hot].filter(id => alive(byId.get(id))).length} / ${total} subs say it`;
+  }
+  if (tChanged || focus || picked || pathLinks) maybeDrawPanels(fl);
+}
+
+function restyle() {
+  const { heats, hot, hmax } = computeHeats();
+  const fl = styleFromHeats(heats, hot, hmax);
+
   key = key.data(fl, l => l.source.id + "|" + l.target.id); key.exit().remove();
   key = key.enter().append("text").attr("class", "key").merge(key).text(l => l.shared[t][0] || "");
   sim.tick(0);
@@ -279,15 +345,43 @@ function restyle() {
   const total = D.nodes.filter(alive).length;
   $("#count").textContent = query ? `${[...hot].filter(id => alive(byId.get(id))).length} / ${total} subs say it` : "";
   link.classed("picked", l => l === picked);
-  drawSpread(); drawOutbreak(); drawFocus(fl); drawProof();
+  drawSpread();
+  drawOutbreak();
+  lastPanelSig = "";
+  maybeDrawPanels(fl, true);
+}
+
+function maybeDrawPanels(fl, force) {
+  const sig = `${focus || ""}|${picked ? (picked.source.id + "-" + picked.target.id) : ""}|${t}|${query}|${pathLinks ? pathLinks.length : 0}`;
+  if (!force && sig === lastPanelSig) return;
+  lastPanelSig = sig;
+  if (fl) {
+    key = key.data(fl, l => l.source.id + "|" + l.target.id); key.exit().remove();
+    key = key.enter().append("text").attr("class", "key").merge(key).text(l => l.shared[t][0] || "");
+  }
+  drawFocus(fl || (focus ? linksOf(focus) : (pathLinks || [])));
+  drawProof();
 }
 
 // mini bar chart: how many live subs use the tracked word at each snapshot
 function drawSpread() {
   const el = $("#spread");
-  const counts = D.snapshots.map((_, i) => query ? D.nodes.filter(n => activeCats.has(n.cat) && n.use[i].some(([term]) => matches(term))).length : 0);
-  const m = d3.max(counts) || 1;
-  el.innerHTML = counts.map((c, i) => `<div class="${i === t ? "now" : ""}" style="height:${Math.max(6, 100 * c / m)}%" title="${D.snapshots[i]}: ${c} subs"></div>`).join("");
+  if (!query) { el.innerHTML = ""; spreadCacheKey = ""; return; }
+  const key = query + "|" + catsKey();
+  if (key !== spreadCacheKey) {
+    const counts = D.snapshots.map((_, i) => D.nodes.reduce((n, node) => n + (activeCats.has(node.cat) && node.use[i].some(([term]) => matches(term)) ? 1 : 0), 0));
+    const m = d3.max(counts) || 1;
+    el.innerHTML = counts.map((c, i) => `<div data-i="${i}" style="height:${Math.max(6, 100 * c / m)}%" title="${D.snapshots[i]}: ${c} subs"></div>`).join("");
+    spreadCacheKey = key;
+  }
+  markSpreadNow();
+}
+function markSpreadNow() {
+  const el = $("#spread");
+  if (!el.children.length) return;
+  el.querySelectorAll(".now").forEach(d => d.classList.remove("now"));
+  const bar = el.querySelector(`[data-i="${t}"]`) || el.children[t];
+  if (bar) bar.classList.add("now");
 }
 
 // patient zero + early hosts + themes infected, for the tracked word
@@ -302,7 +396,10 @@ function outbreakIndex(min = 3) {
 }
 function drawOutbreak() {
   const el = $("#outbreak");
-  if (!query) { el.hidden = true; el.innerHTML = ""; return; }
+  if (!query) { el.hidden = true; el.innerHTML = ""; outbreakCacheKey = ""; return; }
+  const key = query + "|" + catsKey();
+  if (key === outbreakCacheKey && el.innerHTML) return;
+  outbreakCacheKey = key;
   const safe = s => String(s).replace(/[&<>"]/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;"}[c]));
   const first = outbreakIndex(3);
   if (first < 0) {
@@ -310,15 +407,21 @@ function drawOutbreak() {
     el.innerHTML = `<div class="ob-title">Outbreak</div><p class="muted">No active communities say <span class="kw2">${safe(query)}</span> in this filter.</p>`;
     return;
   }
-  const early = hostsAt(first).slice().sort((a, b) => heatAt(b, first) - heatAt(a, first)).slice(0, 6);
+  const earlyHosts = hostsAt(first);
+  const early = earlyHosts.slice().sort((a, b) => heatAt(b, first) - heatAt(a, first)).slice(0, 6);
   const themes = new Map();
-  for (let i = first; i < N; i++) for (const n of hostsAt(i)) themes.set(n.cat, (themes.get(n.cat) || 0) + 1);
+  const hostsCache = new Map([[first, earlyHosts]]);
+  for (let i = first; i < N; i++) {
+    const hs = i === first ? earlyHosts : hostsAt(i);
+    hostsCache.set(i, hs);
+    for (const n of hs) themes.set(n.cat, (themes.get(n.cat) || 0) + 1);
+  }
   const themeBits = [...themes.entries()].sort((a, b) => b[1] - a[1])
     .map(([id]) => `<span class="ob-theme"><i style="background:${color(id)}"></i>${catName[id]}</span>`).join("");
-  const later = hostsAt(N - 1).length;
+  const later = (hostsCache.get(N - 1) || hostsAt(N - 1)).length;
   el.hidden = false;
   el.innerHTML = `<div class="ob-title">Outbreak · <button type="button" class="btn-text" id="outbreak-jump">${snapLabel(D.snapshots[first])}</button></div>
-    <p><span class="kw2">${safe(query)}</span> clears ${hostsAt(first).length} subs by ${snapLabel(D.snapshots[first])}${later > hostsAt(first).length ? ` → ${later} by ${snapLabel(D.snapshots[N - 1])}` : ""}.</p>
+    <p><span class="kw2">${safe(query)}</span> clears ${earlyHosts.length} subs by ${snapLabel(D.snapshots[first])}${later > earlyHosts.length ? ` → ${later} by ${snapLabel(D.snapshots[N - 1])}` : ""}.</p>
     <p class="muted">Early hosts: ${early.map(n => `r/${n.id}`).join(", ")}</p>
     <div class="ob-themes">${themeBits}</div>`;
   $("#outbreak-jump").onclick = () => setTime(first);
@@ -329,7 +432,7 @@ function drawFocus(fl) {
   const el = $("#focus");
   if (!focus) { el.style.display = "none"; return; }
   const n = byId.get(focus);
-  const rows = fl.sort((a, b) => b.value - a.value).map(l => {
+  const rows = fl.slice().sort((a, b) => b.value - a.value).map(l => {
     const o = other(l, focus);
     return `<tr><td>r/${o.id}</td><td><span class="kw">${l.shared[t][0] || "n/a"}</span></td><td>${Math.round(restLength(l))}px · ${Math.round(100 * l.value / vmax)}</td></tr>`;
   }).join("");
@@ -400,7 +503,11 @@ function moveTip(e) { tip.style.left = Math.min(e.clientX + 14, W() - 300) + "px
 function hideTip() { tip.style.display = "none"; }
 
 // --- controls ------------------------------------------------------------
-$("#q").addEventListener("input", e => { query = e.target.value.trim().toLowerCase(); syncChips(); restyle(); });
+$("#q").addEventListener("input", e => {
+  query = e.target.value.trim().toLowerCase();
+  spreadCacheKey = ""; outbreakCacheKey = ""; lastPanelSig = "";
+  syncChips(); restyle();
+});
 $("#t").addEventListener("input", e => setTime(+e.target.value));
 // scroll over the timeline (or shift+scroll over the map) to scrub time continuously
 const scrub = e => { e.preventDefault(); setTime(tf + (e.deltaY + e.deltaX) * .004); };
@@ -442,6 +549,7 @@ const CURATED = [
 function trackTerm(term, jumpOutbreak = false) {
   query = query === term ? "" : term;
   $("#q").value = query;
+  spreadCacheKey = ""; outbreakCacheKey = ""; lastPanelSig = "";
   syncChips();
   if (query && jumpOutbreak) {
     const i = outbreakIndex(3);
@@ -470,11 +578,13 @@ $("#cats").addEventListener("click", e => {
   const c = b.dataset.cat;
   activeCats.has(c) ? activeCats.delete(c) : activeCats.add(c);
   b.classList.toggle("off", !activeCats.has(c));
+  spreadCacheKey = ""; outbreakCacheKey = ""; lastPanelSig = "";
   update();
 });
 $("#cats-none").addEventListener("click", () => {
   activeCats.clear();
   document.querySelectorAll("#cats .cat").forEach(b => b.classList.add("off"));
+  spreadCacheKey = ""; outbreakCacheKey = ""; lastPanelSig = "";
   update();
 });
 $("#cross-theme").addEventListener("click", () => {
@@ -521,7 +631,7 @@ sim.on("end", () => { fit(false); sim.on("end", null); });   // and once more wh
       bar.querySelector(".df-msg").textContent =
         `Timeline updated · ${m.span || m.months + " months"} · ${m.nodes} communities`;
       bar.hidden = false;
-      if (!playing) setTimeout(apply, 2500);
+      // Manual reload only — auto-reload re-parses ~85MB and freezes the tab.
     } catch (_) {}
   };
   setInterval(tick, 20000);
@@ -529,5 +639,5 @@ sim.on("end", () => { fit(false); sim.on("end", null); });   // and once more wh
 })();
 </script>
 <script src="app/extras.js"></script>
-<script src="app/story.js?v=ms6"></script>
-<script src="app/explain.js?v=4"></script>
+<script src="app/story.js?v=ms7"></script>
+<script src="app/explain.js?v=5"></script>

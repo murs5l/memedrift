@@ -230,8 +230,11 @@
       : ctx.kind === "edge"
         ? `Edge · r/${ctx.nodes[0]?.id} ↔ r/${ctx.nodes[1]?.id} · ${ctx.edges[0]?.bridge_word || "…"}`
         : `Focus · r/${ctx.nodes[0]?.id}`;
+    const hint = `${label} (${ctx.snapshot}). Click Explain selection for a Cursor reading.`;
+    if (bodyEl.dataset.hint === hint) return;
+    bodyEl.dataset.hint = hint;
     bodyEl.className = "explain-body muted";
-    bodyEl.textContent = `${label} (${ctx.snapshot}). Click Explain selection for a Cursor reading.`;
+    bodyEl.textContent = hint;
   }
 
   async function explainNow() {
@@ -286,8 +289,10 @@
 
   if (typeof restyle === "function") {
     const prev = restyle;
+    let lastSel = "";
     restyle = function () {
       prev();
+      const sel = `${focus || ""}|${picked ? 1 : 0}|${pathLinks ? pathLinks.length : 0}|${typeof t === "number" ? t : ""}`;
       const focusEl = document.getElementById("focus");
       if (focus && focusEl && focusEl.style.display !== "none") {
         ensureInlineButton(focusEl, "explain-focus-btn");
@@ -300,7 +305,7 @@
       if (out && pathLinks && pathLinks.length) {
         ensureInlineButton(out, "explain-path-btn");
       }
-      syncPanel();
+      if (sel !== lastSel) { lastSel = sel; syncPanel(); }
     };
   }
 

@@ -1,7 +1,7 @@
 <meta charset="utf-8">
 <title>Meme Drift - Zeitgeist · 3D</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600&family=IBM+Plex+Sans:wght@400;500&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
-<link rel="stylesheet" href="app/ui.css?v=ym6">
+<link rel="stylesheet" href="app/ui.css?v=ym7">
 <link rel="stylesheet" href="app/story.css?v=4">
 
 <div id="stage" class="beside-panel" aria-label="Subreddit vocabulary map in 3D"></div>
@@ -82,7 +82,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/0.160.0/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/3d-force-graph@1.73.4/dist/3d-force-graph.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three-spritetext@1.8.2/dist/three-spritetext.min.js"></script>
-<script src="data/data.js?v=partial1"></script>
+<script src="data/data.js?v=perf1"></script>
 <script>
 const D = window.DATA;
 const N = D.snapshots.length;
@@ -128,13 +128,14 @@ function heat(n) {   // blended between the two snapshots around tf
   const [i0, i1, f] = span();
   return heatAt(n, i0) * (1 - f) + heatAt(n, i1) * f;
 }
-const linksOf = id => D.links.filter(l => l.history[t] && (l.source.id === id || l.target.id === id));
+const linksOf = id => linksByNode.get(id) || [];
 const other = (l, id) => l.source.id === id ? l.target : l.source;
-const touches = l => focus ? l.source.id === focus || l.target.id === focus : !!pathLinks && pathLinks.includes(l);   // "lit" line: focused sub's or part of the chain
+const touches = l => focus ? l.source.id === focus || l.target.id === focus : !!(pathLinkSet && pathLinkSet.has(l));
 const rgba = (hex, a) => { const c = d3.color(hex); c.opacity = a; return c.formatRgb(); };
 
 // per-render style state, recomputed in restyle() and read by the accessors below
 let S = { hot: new Set(), heats: new Map(), hmax: 1, near: null };
+let pathLinkSet = null;
 const show = n => (!S.near || S.near.has(n.id)) && (!query || S.hot.has(n.id));
 const labelled = n => S.hot.has(n.id) || S.near?.has(n.id) || radius(n.subs) > 11;
 
@@ -199,9 +200,10 @@ function update() {
   });
   links.forEach(l => l.value = valueAt(l));
   liveLinks_ = links;
+  rebuildAdj();
   G.graphData({ nodes, links });
   showTime();
-  restyle();
+  restyle(true);
 }
 function showTime() {
   const [i0, , f] = span();
@@ -227,32 +229,80 @@ function showTime() {
 }
 
 let lastFrame = 0;
+let spreadCacheKey = "";
+let outbreakCacheKey = "";
+let lastPanelSig = "";
+let linksByNode = new Map();
+let pathZoomed = false;
+
+function rebuildAdj() {
+  linksByNode = new Map();
+  for (const l of liveLinks_) {
+    const a = l.source.id ?? l.source, b = l.target.id ?? l.target;
+    if (!linksByNode.has(a)) linksByNode.set(a, []);
+    if (!linksByNode.has(b)) linksByNode.set(b, []);
+    linksByNode.get(a).push(l);
+    linksByNode.get(b).push(l);
+  }
+}
+function catsKey() { return [...activeCats].sort().join(","); }
+
 function setTime(x) {   // fractional time; the WebGL refresh is throttled to ~15 fps
   const before = Math.floor(tf);
+  const prevT = t;
   tf = Math.max(0, Math.min(N - 1, x));
   t = Math.round(tf);
   if (Math.floor(tf) !== before) return update();
   liveLinks_.forEach(l => l.value = valueAt(l));
   showTime();
-  if (performance.now() - lastFrame < 66) return;
+  if (performance.now() - lastFrame < 66) {
+    markSpreadNow();
+    return;
+  }
   lastFrame = performance.now();
   G.d3Force("link").distance(restLength).strength(l => .1 + .9 * l.value / vmax);
-  G.d3ReheatSimulation();
-  restyle();
+  // Reheat sparingly — every scrub frame is too expensive in WebGL.
+  if (!playing) G.d3ReheatSimulation();
+  restyle(prevT !== t);
 }
 
-function restyle() {
-  const heats = new Map(D.nodes.map(n => [n.id, heat(n)]));
+function restyle(fullPanels = true) {
+  const heats = query ? new Map(simNodes().map(n => [n.id, heat(n)])) : new Map();
+  const hot = new Set([...heats].filter(([, h]) => h > 0).map(([id]) => id));
   const fl = focus ? linksOf(focus) : (pathLinks || []);
-  S = { heats, hmax: d3.max([...heats.values()]) || 1,
-        hot: new Set([...heats].filter(([, h]) => h > 0).map(([id]) => id)),
+  pathLinkSet = pathLinks ? new Set(pathLinks) : null;
+  S = { heats, hmax: d3.max([...heats.values()]) || 1, hot,
         near: focus ? new Set([focus, ...fl.map(l => other(l, focus).id)])
             : pathLinks ? new Set(pathLinks.flatMap(l => [l.source.id, l.target.id])) : null };
-  G.refresh();   // re-runs every accessor above (colours, sizes, labels, keyword sprites)
-  if (pathLinks && !focus && !playing) G.zoomToFit(700, 120, n => S.near.has(n.id));   // fly the camera to the chain
+  G.refresh();
+  if (pathLinks && !focus && !playing) {
+    if (!pathZoomed) {
+      G.zoomToFit(700, 120, n => S.near.has(n.id));
+      pathZoomed = true;
+    }
+  } else {
+    pathZoomed = false;
+  }
   const total = D.nodes.filter(alive).length;
   $("#count").textContent = query ? `${[...S.hot].filter(id => alive(byId.get(id))).length} / ${total} subs say it` : "";
-  drawSpread(); drawOutbreak(); drawFocus(fl); drawProof();
+  drawSpread();
+  if (fullPanels) {
+    drawOutbreak();
+    lastPanelSig = "";
+    maybeDrawPanels3d(fl, true);
+  } else {
+    markSpreadNow();
+    maybeDrawPanels3d(fl, false);
+  }
+}
+function simNodes() {
+  try { return G.graphData().nodes || D.nodes; } catch { return D.nodes; }
+}
+function maybeDrawPanels3d(fl, force) {
+  const sig = `${focus || ""}|${picked ? 1 : 0}|${t}|${query}|${pathLinks ? pathLinks.length : 0}`;
+  if (!force && sig === lastPanelSig) return;
+  lastPanelSig = sig;
+  drawFocus(fl); drawProof();
 }
 
 // --- tooltips (rendered by the graph on hover) ----------------------------
@@ -273,9 +323,22 @@ function linkTip(l) {
 // mini bar chart: how many live subs use the tracked word at each snapshot
 function drawSpread() {
   const el = $("#spread");
-  const counts = D.snapshots.map((_, i) => query ? D.nodes.filter(n => activeCats.has(n.cat) && n.use[i].some(([term]) => matches(term))).length : 0);
-  const m = d3.max(counts) || 1;
-  el.innerHTML = counts.map((c, i) => `<div class="${i === t ? "now" : ""}" style="height:${Math.max(6, 100 * c / m)}%" title="${D.snapshots[i]}: ${c} subs"></div>`).join("");
+  if (!query) { el.innerHTML = ""; spreadCacheKey = ""; return; }
+  const key = query + "|" + catsKey();
+  if (key !== spreadCacheKey) {
+    const counts = D.snapshots.map((_, i) => D.nodes.reduce((n, node) => n + (activeCats.has(node.cat) && node.use[i].some(([term]) => matches(term)) ? 1 : 0), 0));
+    const m = d3.max(counts) || 1;
+    el.innerHTML = counts.map((c, i) => `<div data-i="${i}" style="height:${Math.max(6, 100 * c / m)}%" title="${D.snapshots[i]}: ${c} subs"></div>`).join("");
+    spreadCacheKey = key;
+  }
+  markSpreadNow();
+}
+function markSpreadNow() {
+  const el = $("#spread");
+  if (!el.children.length) return;
+  el.querySelectorAll(".now").forEach(d => d.classList.remove("now"));
+  const bar = el.querySelector(`[data-i="${t}"]`) || el.children[t];
+  if (bar) bar.classList.add("now");
 }
 
 function hostsAt(i) {
@@ -289,7 +352,10 @@ function outbreakIndex(min = 3) {
 }
 function drawOutbreak() {
   const el = $("#outbreak");
-  if (!query) { el.hidden = true; el.innerHTML = ""; return; }
+  if (!query) { el.hidden = true; el.innerHTML = ""; outbreakCacheKey = ""; return; }
+  const key = query + "|" + catsKey();
+  if (key === outbreakCacheKey && el.innerHTML) return;
+  outbreakCacheKey = key;
   const safe = s => String(s).replace(/[&<>"]/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;"}[c]));
   const first = outbreakIndex(3);
   if (first < 0) {
@@ -297,15 +363,16 @@ function drawOutbreak() {
     el.innerHTML = `<div class="ob-title">Outbreak</div><p class="muted">No active communities say <span class="kw2">${safe(query)}</span> in this filter.</p>`;
     return;
   }
-  const early = hostsAt(first).slice().sort((a, b) => heatAt(b, first) - heatAt(a, first)).slice(0, 6);
+  const earlyHosts = hostsAt(first);
+  const early = earlyHosts.slice().sort((a, b) => heatAt(b, first) - heatAt(a, first)).slice(0, 6);
   const themes = new Map();
-  for (let i = first; i < N; i++) for (const n of hostsAt(i)) themes.set(n.cat, (themes.get(n.cat) || 0) + 1);
+  for (let i = first; i < N; i++) for (const n of (i === first ? earlyHosts : hostsAt(i))) themes.set(n.cat, (themes.get(n.cat) || 0) + 1);
   const themeBits = [...themes.entries()].sort((a, b) => b[1] - a[1])
     .map(([id]) => `<span class="ob-theme"><i style="background:${color(id)}"></i>${catName[id]}</span>`).join("");
   const later = hostsAt(N - 1).length;
   el.hidden = false;
   el.innerHTML = `<div class="ob-title">Outbreak · <button type="button" class="btn-text" id="outbreak-jump">${snapLabel(D.snapshots[first])}</button></div>
-    <p><span class="kw2">${safe(query)}</span> clears ${hostsAt(first).length} subs by ${snapLabel(D.snapshots[first])}${later > hostsAt(first).length ? ` → ${later} by ${snapLabel(D.snapshots[N - 1])}` : ""}.</p>
+    <p><span class="kw2">${safe(query)}</span> clears ${earlyHosts.length} subs by ${snapLabel(D.snapshots[first])}${later > earlyHosts.length ? ` → ${later} by ${snapLabel(D.snapshots[N - 1])}` : ""}.</p>
     <p class="muted">Early hosts: ${early.map(n => `r/${n.id}`).join(", ")}</p>
     <div class="ob-themes">${themeBits}</div>`;
   $("#outbreak-jump").onclick = () => setTime(first);
@@ -316,7 +383,7 @@ function drawFocus(fl) {
   const el = $("#focus");
   if (!focus) { el.style.display = "none"; return; }
   const n = byId.get(focus);
-  const rows = fl.sort((a, b) => b.value - a.value).map(l => {
+  const rows = fl.slice().sort((a, b) => b.value - a.value).map(l => {
     const o = other(l, focus);
     return `<tr><td>r/${o.id}</td><td><span class="kw">${l.shared[t][0] || "n/a"}</span></td><td>${Math.round(restLength(l))}px · ${Math.round(100 * l.value / vmax)}</td></tr>`;
   }).join("");
@@ -368,7 +435,11 @@ function drawProof() {
 }
 
 // --- controls ------------------------------------------------------------
-$("#q").addEventListener("input", e => { query = e.target.value.trim().toLowerCase(); syncChips(); restyle(); });
+$("#q").addEventListener("input", e => {
+  query = e.target.value.trim().toLowerCase();
+  spreadCacheKey = ""; outbreakCacheKey = ""; lastPanelSig = "";
+  syncChips(); restyle(true);
+});
 $("#t").addEventListener("input", e => setTime(+e.target.value));
 // scroll over the timeline (or shift+scroll over the map) to scrub time continuously
 const scrub = e => { e.preventDefault(); setTime(tf + (e.deltaY + e.deltaX) * .004); };
@@ -409,12 +480,13 @@ const CURATED = [
 function trackTerm(term, jumpOutbreak = false) {
   query = query === term ? "" : term;
   $("#q").value = query;
+  spreadCacheKey = ""; outbreakCacheKey = ""; lastPanelSig = "";
   syncChips();
   if (query && jumpOutbreak) {
     const i = outbreakIndex(3);
     if (i >= 0) return setTime(i);
   }
-  restyle();
+  restyle(true);
 }
 $("#curated").innerHTML = CURATED.map(c => `<button type="button" class="curated-item" data-term="${c.term}"><span class="curated-term">${c.term}</span><span class="curated-why">${c.why}</span></button>`).join("");
 $("#curated").addEventListener("click", e => {
@@ -435,11 +507,13 @@ $("#cats").addEventListener("click", e => {
   const c = b.dataset.cat;
   activeCats.has(c) ? activeCats.delete(c) : activeCats.add(c);
   b.classList.toggle("off", !activeCats.has(c));
+  spreadCacheKey = ""; outbreakCacheKey = ""; lastPanelSig = "";
   update();
 });
 $("#cats-none").addEventListener("click", () => {
   activeCats.clear();
   document.querySelectorAll("#cats .cat").forEach(b => b.classList.add("off"));
+  spreadCacheKey = ""; outbreakCacheKey = ""; lastPanelSig = "";
   update();
 });
 $("#cross-theme").addEventListener("click", () => {
@@ -482,7 +556,7 @@ update();
       bar.querySelector(".df-msg").textContent =
         `Timeline updated · ${m.span || m.months + " months"} · ${m.nodes} communities`;
       bar.hidden = false;
-      if (!playing) setTimeout(apply, 2500);
+      // Manual reload only — auto-reload re-parses ~85MB and freezes the tab.
     } catch (_) {}
   };
   setInterval(tick, 20000);
@@ -490,5 +564,5 @@ update();
 })();
 </script>
 <script src="app/extras.js"></script>
-<script src="app/story.js?v=ms6"></script>
-<script src="app/explain.js?v=4"></script>
+<script src="app/story.js?v=ms7"></script>
+<script src="app/explain.js?v=5"></script>
