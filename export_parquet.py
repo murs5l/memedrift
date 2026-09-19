@@ -22,7 +22,7 @@ import build_data as B
 OUT = os.path.join(B.HERE, "dataset")
 os.makedirs(OUT, exist_ok=True)
 
-data = json.loads(open(os.path.join(B.HERE, "data.js")).read()[len("window.DATA = "):-2])
+data = json.loads(open(os.path.join(B.HERE, "data", "data.js")).read()[len("window.DATA = "):-2])
 theme_of = {n["id"]: n["cat"] for n in data["nodes"]}
 names = [n["id"] for n in data["nodes"]]
 

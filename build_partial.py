@@ -83,7 +83,8 @@ def build(force=False):
         return None
 
     n_subs = len({s for lbl, _ in ready for s in hit[lbl]})
-    meta_path = os.path.join(HERE, "data.meta.json")
+    meta_path = os.path.join(HERE, "data", "data.meta.json")
+    os.makedirs(os.path.join(HERE, "data", "posts"), exist_ok=True)
     prev = load_json(meta_path) or {}
     if not force and prev.get("subs") == n_subs and prev.get("snapshots") == [lbl for lbl, _ in ready]:
         print(f"unchanged: {len(ready)} months, {n_subs} subs", flush=True)
@@ -194,12 +195,12 @@ def build(force=False):
 
     out = {"snapshots": [lbl for lbl, _ in ready], "categories": categories,
            "nodes": nodes, "links": links, "memes": memes}
-    with open(os.path.join(HERE, "data.js"), "w") as f:
+    with open(os.path.join(HERE, "data", "data.js"), "w") as f:
         f.write("window.DATA = " + json.dumps(out, separators=(",", ":")) + ";\n")
     for lbl, date in ready:
         titles = {s: [p.split("\n", 1)[0][:140] for p in posts[(s, (lbl, date))]]
                   for s in live_names if (s, (lbl, date)) in posts}
-        with open(os.path.join(HERE, f"posts_{lbl}.js"), "w") as f:
+        with open(os.path.join(HERE, "data", "posts", f"posts_{lbl}.js"), "w") as f:
             f.write(f"window.POSTS = window.POSTS || {{}}; window.POSTS[{lbl!r}] = " + json.dumps(titles, separators=(",", ":")) + ";\n")
 
     meta = {

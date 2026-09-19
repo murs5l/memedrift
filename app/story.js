@@ -23,7 +23,7 @@
           { op: "focus", id: "GTA" },
           { op: "annotate", ids: ["GTA"] },
           { op: "waitMs", ms: 350 },
-          { op: "zoomTo", ids: ["GTA"], neighbors: false, pad: 90 },
+          { op: "zoomTo", ids: ["GTA"], neighbors: true, pad: 200, maxK: 1.55 },
           { op: "waitMs", ms: 400 },
         ],
       },
@@ -39,7 +39,7 @@
           { op: "annotate", ids: ["GTA"] },
           { op: "spot", sel: "#spread" },
           { op: "waitMs", ms: 350 },
-          { op: "zoomTo", ids: ["GTA"], neighbors: false, pad: 90 },
+          { op: "zoomTo", ids: ["GTA"], neighbors: true, pad: 200, maxK: 1.55 },
           { op: "waitMs", ms: 350 },
         ],
       },
@@ -51,7 +51,7 @@
         actions: [
           { op: "spot", sel: "#spread" },
           { op: "annotate", ids: ["GTA"] },
-          { op: "zoomTo", ids: ["GTA"], neighbors: false, pad: 90 },
+          { op: "zoomTo", ids: ["GTA"], neighbors: true, pad: 200, maxK: 1.55 },
         ],
       },
       {
@@ -66,7 +66,7 @@
           { op: "annotate", ids: ["ChatGPT"] },
           { op: "spot", sel: "#outbreak" },
           { op: "waitMs", ms: 350 },
-          { op: "zoomTo", ids: ["ChatGPT"], neighbors: false, pad: 90 },
+          { op: "zoomTo", ids: ["ChatGPT"], neighbors: true, pad: 200, maxK: 1.55 },
           { op: "waitMs", ms: 350 },
         ],
       },
@@ -80,7 +80,7 @@
           { op: "focus", id: "ChatGPT" },
           { op: "annotate", ids: ["ChatGPT"] },
           { op: "spot", sel: "#focus" },
-          { op: "zoomTo", ids: ["ChatGPT"], neighbors: false, pad: 90 },
+          { op: "zoomTo", ids: ["ChatGPT"], neighbors: true, pad: 200, maxK: 1.55 },
         ],
       },
       {
@@ -94,7 +94,7 @@
           { op: "clearFocus" },
           { op: "annotate", ids: ["ChatGPT", "singularity", "programming", "learnprogramming"] },
           { op: "waitMs", ms: 400 },
-          { op: "zoomTo", ids: ["ChatGPT", "singularity", "programming", "learnprogramming"], neighbors: false, pad: 150 },
+          { op: "zoomTo", ids: ["ChatGPT", "singularity", "programming", "learnprogramming"], neighbors: true, pad: 220, maxK: 1.45 },
           { op: "waitMs", ms: 400 },
         ],
       },
@@ -108,7 +108,7 @@
           { op: "clearFocus" },
           { op: "annotate", ids: ["ChatGPT", "singularity", "programming"] },
           { op: "spot", sel: "#q" },
-          { op: "zoomTo", ids: ["ChatGPT", "singularity", "programming"], neighbors: false, pad: 140 },
+          { op: "zoomTo", ids: ["ChatGPT", "singularity", "programming"], neighbors: true, pad: 220, maxK: 1.45 },
         ],
       },
       {
@@ -369,7 +369,7 @@
     return byId.has(id);
   }
 
-  function zoomToNodes(ids, padExtra, withNeighbors = true) {
+  function zoomToNodes(ids, padExtra, withNeighbors = true, maxKOpt) {
     if (!ids || !ids.length) {
       if (typeof fit === "function") fit(true);
       else if (typeof G !== "undefined" && G && G.zoomToFit) G.zoomToFit(600, 80);
@@ -390,7 +390,7 @@
     const is3d = typeof G !== "undefined" && G && typeof G.zoomToFit === "function" && stageEl && stageEl.tagName !== "svg";
     if (is3d) {
       const set = new Set(ids);
-      G.zoomToFit(750, 48, n => set.has(n.id));
+      G.zoomToFit(750, 80, n => set.has(n.id));
       return;
     }
 
@@ -419,7 +419,7 @@
     const h = Math.max(120, innerHeight - py - 64);
     const spanX = Math.max(x1 - x0, 40);
     const spanY = Math.max(y1 - y0, 40);
-    const maxK = 2.35;
+    const maxK = maxKOpt != null ? maxKOpt : 2.35;
     const minK = 0.5;
     let kk = Math.min(w / spanX, h / spanY);
     kk = Math.max(minK, Math.min(maxK, kk));
@@ -481,7 +481,7 @@
         }
         case "zoomTo": {
           const ids = (a.ids || []).filter(nodeAlive);
-          zoomToNodes(ids, a.pad, a.neighbors !== false);
+          zoomToNodes(ids, a.pad, a.neighbors !== false, a.maxK);
           break;
         }
         case "annotate": {

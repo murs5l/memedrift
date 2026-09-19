@@ -6,20 +6,32 @@ Type a word and watch it jump the fence between communities.
 ## Run
 
 ```bash
-python3 build_data.py        # monthly from 2020 (first run is long; cached after)
-python3 -m http.server 8765  # 2D: http://localhost:8765   3D: http://localhost:8765/index3d.html
+python3 build_data.py                              # monthly from 2020 (first run is long; cached after)
+python3 -m http.server 8765                        # or: python3 explain_server.py
+# 2D: http://localhost:8765   3D: http://localhost:8765/index3d.html
 ```
 
 Stdlib + numpy. No API keys, no torch.
 
 `index.html` is the 2D map (D3). `index3d.html` is the same thing as an orbitable 3D force graph (three.js via 3d-force-graph): same spring law, keywords, proof cards and timeline; drag to orbit, right-drag to pan, scroll to zoom.
 
+## Layout
+
+| path | what |
+|---|---|
+| `index.html` / `index3d.html` | entry pages |
+| `app/` | UI scripts & CSS (`extras.js`, `story.js`, `explain.js`, `ui.css`, `story.css`) |
+| `data/data.js` | graph payload |
+| `data/posts/` | on-demand `posts_YYYY-MM.js` title files |
+| `monthly/` | last-12-months mirror (same `app/` + `data/` layout) |
+| `cache/` | Arctic Shift download cache |
+
 ## Timescales
 
-- `python3 build_data.py` → monthly, Jan 2020 → Aug 2026, in this folder.
-- `python3 build_data.py monthly` → the last 12 months only, in `monthly/` (its own `data.js`, post files and page copies). Both share `cache/`.
+- `python3 build_data.py` → monthly, Jan 2020 → Aug 2026, under `data/`.
+- `python3 build_data.py monthly` → the last 12 months only, under `monthly/` (its own `data/`, post files and page copies). Both share `cache/`.
 
-## Explore & play (`extras.js`, loaded by every page)
+## Explore & play (`app/extras.js`, loaded by every page)
 
 - **Connect two subreddits**: pick any two (or "surprise me"): the words both say with mention counts, and the shortest chain of lines between them on the map, one keyword per hop (e.g. r/Coronavirus → vaccine → r/Health → sweetener → r/keto → grams → r/budgetfood → aldi → r/Frugal → jar → r/mildlyinteresting). The chain is lit on the map and re-computed when you move the timeline.
 - **Game: when was this?**: 5 rounds: the map is lit for a rising meme at a hidden snapshot; guess the snapshot from who says it. 3 pts exact, 1 pt one step off.

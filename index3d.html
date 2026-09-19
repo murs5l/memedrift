@@ -1,8 +1,8 @@
 <meta charset="utf-8">
 <title>Meme Drift - Zeitgeist · 3D</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600&family=IBM+Plex+Sans:wght@400;500&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
-<link rel="stylesheet" href="ui.css?v=ym6">
-<link rel="stylesheet" href="story.css?v=4">
+<link rel="stylesheet" href="app/ui.css?v=ym6">
+<link rel="stylesheet" href="app/story.css?v=4">
 
 <div id="stage" class="beside-panel" aria-label="Subreddit vocabulary map in 3D"></div>
 
@@ -82,7 +82,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/0.160.0/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/3d-force-graph@1.73.4/dist/3d-force-graph.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three-spritetext@1.8.2/dist/three-spritetext.min.js"></script>
-<script src="data.js?v=partial1"></script>
+<script src="data/data.js?v=partial1"></script>
 <script>
 const D = window.DATA;
 const N = D.snapshots.length;
@@ -338,7 +338,7 @@ function loadPosts(year) {
   return loaded[year] ??= new Promise((ok, fail) => {
     if (window.POSTS?.[year]) return ok();
     const el = document.createElement("script");
-    el.src = `posts_${year}.js`; el.onload = ok; el.onerror = () => fail(new Error("posts file missing"));
+    el.src = `data/posts/posts_${year}.js`; el.onload = ok; el.onerror = () => fail(new Error("posts file missing"));
     document.head.appendChild(el);
   });
 }
@@ -470,7 +470,7 @@ update();
   };
   const tick = async () => {
     try {
-      const r = await fetch("data.meta.json?t=" + Date.now(), { cache: "no-store" });
+      const r = await fetch("data/data.meta.json?t=" + Date.now(), { cache: "no-store" });
       if (!r.ok) return;
       const m = await r.json();
       const key = (m.snapshots || []).join(",");
@@ -489,5 +489,6 @@ update();
   setTimeout(tick, 4000);
 })();
 </script>
-<script src="extras.js"></script>
-<script src="story.js?v=ms5"></script>
+<script src="app/extras.js"></script>
+<script src="app/story.js?v=ms6"></script>
+<script src="app/explain.js?v=4"></script>

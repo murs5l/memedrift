@@ -254,15 +254,25 @@ def main():
 
     out = {"snapshots": [lbl for lbl, _ in SNAPSHOTS], "categories": categories,
            "nodes": nodes, "links": links, "memes": memes}
-    with open(os.path.join(OUT, "data.js"), "w") as f:
+    data_dir = os.path.join(OUT, "data")
+    posts_dir = os.path.join(data_dir, "posts")
+    os.makedirs(posts_dir, exist_ok=True)
+    with open(os.path.join(data_dir, "data.js"), "w") as f:
         f.write("window.DATA = " + json.dumps(out, separators=(",", ":")) + ";\n")
     # every post title per sub per year, so the UI can list ALL posts behind a keyword (one file per year, loaded on demand)
     for lbl, date in SNAPSHOTS:
         titles = {s: [p.split("\n", 1)[0][:140] for p in posts[(s, (lbl, date))]] for s in names}
-        with open(os.path.join(OUT, f"posts_{lbl}.js"), "w") as f:
+        with open(os.path.join(posts_dir, f"posts_{lbl}.js"), "w") as f:
             f.write(f"window.POSTS = window.POSTS || {{}}; window.POSTS[{lbl!r}] = " + json.dumps(titles, separators=(",", ":")) + ";\n")
     if OUT != HERE:   # monthly build: ship copies of the two pages next to its data, with the timescale chip pointing back
-        import shutil; shutil.copy(os.path.join(HERE, "extras.js"), OUT)
+        import shutil
+        app_src = os.path.join(HERE, "app")
+        app_dst = os.path.join(OUT, "app")
+        os.makedirs(app_dst, exist_ok=True)
+        for name in ("extras.js", "story.js", "explain.js", "ui.css", "story.css"):
+            src = os.path.join(app_src, name)
+            if os.path.exists(src):
+                shutil.copy(src, app_dst)
         for page in ("index.html", "index3d.html"):
             html = open(os.path.join(HERE, page)).read()
             html = html.replace(f'href="monthly/{page}"', f'href="../{page}"').replace(">monthly timeline<", ">yearly timeline<")
