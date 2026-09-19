@@ -24,6 +24,11 @@
     </div>
 
     <div class="sec">
+      <div class="lbl"><span>Look at this</span></div>
+      <div class="curated" id="curated"></div>
+    </div>
+
+    <div class="sec">
       <div class="lbl"><span>Timeline</span></div>
       <div class="time">
         <button id="play" title="Play timeline" aria-label="Play timeline">▶</button>
@@ -32,6 +37,7 @@
       </div>
       <div class="lbl"><span>Spread over time</span></div>
       <div id="spread" role="img" aria-label="Subreddits using the tracked word over time"></div>
+      <div id="outbreak" hidden></div>
     </div>
   </div>
 
@@ -43,7 +49,13 @@
   </div>
 
   <div class="sec">
-    <div class="lbl"><span>Communities</span><button type="button" class="btn-text" id="cats-none" title="Turn off every theme">Clear all</button></div>
+    <div class="lbl">
+      <span>Communities</span>
+      <span class="lbl-actions">
+        <button type="button" class="btn-text" id="cross-theme" title="Show only lines between different themes" aria-pressed="false">Cross-theme edges</button>
+        <button type="button" class="btn-text" id="cats-none" title="Turn off every theme">Clear all</button>
+      </span>
+    </div>
     <div class="cats" id="cats"></div>
   </div>
 
@@ -77,6 +89,7 @@ const $ = s => document.querySelector(s);
 let t = N - 1, query = "", focus = null, picked = null, playing = null, k = 1;
 let tf = t;             // fractional time: the layout glides between snapshot floor(tf) and ceil(tf)
 let pathLinks = null;   // set by extras.js ("connect two subreddits"): links to light up as a chain
+let crossOnly = false;  // only edges that bridge two different themes
 const activeCats = new Set(D.categories.map(c => c.id));
 const byId = new Map(D.nodes.map(n => [n.id, n]));
 const vmax = d3.max(D.links, l => d3.max(l.history));
@@ -146,7 +159,13 @@ function update() {
   const [i0, i1] = span();
   const nodes = D.nodes.filter(n => (n.terms[i0].length || n.terms[i1].length) && activeCats.has(n.cat));
   const ids = new Set(nodes.map(n => n.id));
-  const links = D.links.filter(l => (l.history[i0] > 0 || l.history[i1] > 0) && ids.has(l.source.id ?? l.source) && ids.has(l.target.id ?? l.target));
+  const links = D.links.filter(l => {
+    if (!(l.history[i0] > 0 || l.history[i1] > 0)) return false;
+    if (!ids.has(l.source.id ?? l.source) || !ids.has(l.target.id ?? l.target)) return false;
+    if (!crossOnly) return true;
+    const a = byId.get(l.source.id ?? l.source), b = byId.get(l.target.id ?? l.target);
+    return a && b && a.cat !== b.cat;
+  });
   links.forEach(l => l.value = valueAt(l));
   liveLinks_ = links;
 
@@ -232,7 +251,7 @@ function restyle() {
   const total = D.nodes.filter(alive).length;
   $("#count").textContent = query ? `${[...hot].filter(id => alive(byId.get(id))).length} / ${total} subs say it` : "";
   link.classed("picked", l => l === picked);
-  drawSpread(); drawFocus(fl); drawProof();
+  drawSpread(); drawOutbreak(); drawFocus(fl); drawProof();
 }
 
 // mini bar chart: how many live subs use the tracked word at each snapshot
@@ -241,6 +260,40 @@ function drawSpread() {
   const counts = D.snapshots.map((_, i) => query ? D.nodes.filter(n => activeCats.has(n.cat) && n.use[i].some(([term]) => matches(term))).length : 0);
   const m = d3.max(counts) || 1;
   el.innerHTML = counts.map((c, i) => `<div class="${i === t ? "now" : ""}" style="height:${Math.max(6, 100 * c / m)}%" title="${D.snapshots[i]}: ${c} subs"></div>`).join("");
+}
+
+// patient zero + early hosts + themes infected, for the tracked word
+function hostsAt(i) {
+  return D.nodes.filter(n => activeCats.has(n.cat) && n.use[i].some(([term]) => matches(term)));
+}
+function outbreakIndex(min = 3) {
+  if (!query) return -1;
+  for (let i = 0; i < N; i++) if (hostsAt(i).length >= min) return i;
+  for (let i = 0; i < N; i++) if (hostsAt(i).length >= 1) return i;
+  return -1;
+}
+function drawOutbreak() {
+  const el = $("#outbreak");
+  if (!query) { el.hidden = true; el.innerHTML = ""; return; }
+  const safe = s => String(s).replace(/[&<>"]/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;"}[c]));
+  const first = outbreakIndex(3);
+  if (first < 0) {
+    el.hidden = false;
+    el.innerHTML = `<div class="ob-title">Outbreak</div><p class="muted">No active communities say <span class="kw2">${safe(query)}</span> in this filter.</p>`;
+    return;
+  }
+  const early = hostsAt(first).slice().sort((a, b) => heatAt(b, first) - heatAt(a, first)).slice(0, 6);
+  const themes = new Map();
+  for (let i = first; i < N; i++) for (const n of hostsAt(i)) themes.set(n.cat, (themes.get(n.cat) || 0) + 1);
+  const themeBits = [...themes.entries()].sort((a, b) => b[1] - a[1])
+    .map(([id]) => `<span class="ob-theme"><i style="background:${color(id)}"></i>${catName[id]}</span>`).join("");
+  const later = hostsAt(N - 1).length;
+  el.hidden = false;
+  el.innerHTML = `<div class="ob-title">Outbreak · <button type="button" class="btn-text" id="outbreak-jump">${D.snapshots[first]}</button></div>
+    <p><span class="kw2">${safe(query)}</span> clears ${hostsAt(first).length} subs by ${D.snapshots[first]}${later > hostsAt(first).length ? ` → ${later} by ${D.snapshots[N - 1]}` : ""}.</p>
+    <p class="muted">Early hosts: ${early.map(n => `r/${n.id}`).join(", ")}</p>
+    <div class="ob-themes">${themeBits}</div>`;
+  $("#outbreak-jump").onclick = () => setTime(first);
 }
 
 // panel: the focused sub's neighbours, the one keyword linking each, and the distance
@@ -337,12 +390,37 @@ $("#play").addEventListener("click", () => {
   playing = requestAnimationFrame(step);
 });
 
+const CURATED = [
+  { term: "openai", why: "AI leaves the lab" },
+  { term: "agents", why: "papers → product speak" },
+  { term: "iran", why: "news into finance & gaming" },
+  { term: "brainrot", why: "culture-word boom" },
+  { term: "tariffs", why: "policy into daily talk" },
+];
+function trackTerm(term, jumpOutbreak = false) {
+  query = query === term ? "" : term;
+  $("#q").value = query;
+  syncChips();
+  if (query && jumpOutbreak) {
+    const i = outbreakIndex(3);
+    if (i >= 0) return setTime(i);
+  }
+  restyle();
+}
+$("#curated").innerHTML = CURATED.map(c => `<button type="button" class="curated-item" data-term="${c.term}"><span class="curated-term">${c.term}</span><span class="curated-why">${c.why}</span></button>`).join("");
+$("#curated").addEventListener("click", e => {
+  const b = e.target.closest("[data-term]"); if (!b) return;
+  trackTerm(b.dataset.term, true);
+});
+
 $("#memes").innerHTML = D.memes.map(m => `<button type="button" class="meme" role="option" data-term="${m.term}" title="${m.spread.join(" → ")}"><span>${m.term}</span><span class="spread">${m.spread[0]}→${m.spread[N - 1]}</span></button>`).join("");
 $("#memes").addEventListener("click", e => {
   const b = e.target.closest(".meme"); if (!b) return;
-  query = query === b.dataset.term ? "" : b.dataset.term; $("#q").value = query; syncChips(); restyle();
+  trackTerm(b.dataset.term, true);
 });
-function syncChips() { document.querySelectorAll("#memes .meme").forEach(b => b.classList.toggle("on", b.dataset.term === query)); }
+function syncChips() {
+  document.querySelectorAll("#memes .meme, #curated .curated-item").forEach(b => b.classList.toggle("on", b.dataset.term === query));
+}
 
 $("#cats").innerHTML = D.categories.map(c => `<button type="button" class="cat" data-cat="${c.id}" title="${c.size} subreddits · ${c.words}"><i style="background:${color(c.id)}"></i>${c.name} <span>${c.size}</span></button>`).join("");
 $("#cats").addEventListener("click", e => {
@@ -355,6 +433,12 @@ $("#cats").addEventListener("click", e => {
 $("#cats-none").addEventListener("click", () => {
   activeCats.clear();
   document.querySelectorAll("#cats .cat").forEach(b => b.classList.add("off"));
+  update();
+});
+$("#cross-theme").addEventListener("click", () => {
+  crossOnly = !crossOnly;
+  $("#cross-theme").classList.toggle("on", crossOnly);
+  $("#cross-theme").setAttribute("aria-pressed", crossOnly ? "true" : "false");
   update();
 });
 

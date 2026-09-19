@@ -138,8 +138,33 @@ body {
   margin: 0;
   letter-spacing: .01em;
 }
+.lbl-actions { display: flex; flex-wrap: wrap; gap: 8px 12px; justify-content: flex-end; }
+.btn-text.on { color: var(--accent); }
 .lbl b { color: var(--accent); font-weight: 500; font-family: var(--mono); font-size: 11px; }
 .lbl .side { font: 400 11px var(--mono); color: var(--muted); opacity: .85; }
+
+.curated { display: flex; flex-direction: column; gap: 2px; }
+.curated-item {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 1px;
+  width: 100%; padding: 6px 0; border: 0; border-bottom: 1px solid var(--line);
+  background: none; color: var(--text); text-align: left; cursor: pointer; border-radius: 0;
+}
+.curated-item:last-child { border-bottom: 0; }
+.curated-item:hover .curated-term { color: var(--accent); }
+.curated-item.on .curated-term { color: var(--accent); }
+.curated-term { font: 600 13px var(--mono); }
+.curated-why { font: 400 11.5px/1.35 var(--body); color: var(--muted); }
+
+#outbreak {
+  margin-top: 4px; padding: 10px; border: 1px solid var(--line); border-radius: var(--r);
+  background: var(--panel-2); font-size: 12px; line-height: 1.45;
+}
+#outbreak .ob-title { font: 500 11px var(--body); color: var(--muted); margin-bottom: 6px; }
+#outbreak p { margin: 0 0 6px; }
+#outbreak p:last-child { margin-bottom: 0; }
+#outbreak .ob-themes { display: flex; flex-wrap: wrap; gap: 6px 10px; margin-top: 4px; }
+#outbreak .ob-theme { display: inline-flex; align-items: center; gap: 5px; font: 12px var(--body); }
+#outbreak .ob-theme i { width: 7px; height: 7px; border-radius: 1px; flex: none; }
 
 input[type=search],
 #connect input,
@@ -276,11 +301,6 @@ input[type=search]:focus,
   place-items: center;
 }
 #play:hover { border-color: var(--line-strong); color: var(--accent); }
-input[type=range] {
-  flex: 1;
-  accent-color: var(--accent);
-  height: 4px;
-}
 #year {
   display: flex;
   flex-direction: column;
@@ -470,7 +490,7 @@ a:focus-visible {
 #tip .big { font: 600 18px var(--display); color: var(--accent); }
 #tip .kw { font: 600 14px var(--mono); color: var(--accent); }
 
-.muted { color: var(--muted); }
+.kw2 { color: var(--accent); font: 600 13px var(--mono); }
 
 @media (max-width: 720px) {
   :root { --panel-w: 100%; }

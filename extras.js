@@ -1,14 +1,11 @@
-// Shared by index.html (2D) and index3d.html (3D): the "connect two subreddits" chain,
-// the "when was this?" game, and the first-visit tour. Talks to the page through the
-// globals it defines (D, t, query, byId, alive, matches, vmax, update, restyle, $)
+// Shared by index.html (2D) and index3d.html (3D): the "connect two subreddits" chain
+// and the first-visit tour. Talks to the page through the globals it defines
+// (D, t, query, byId, alive, matches, vmax, update, restyle, $)
 // and hands back `pathLinks` (an array of links to light up) which restyle() reads.
-
-let quiz = null;   // pathLinks is declared by the page
 
 // ---------------------------------------------------------------- back / reset
 $("#panel").insertAdjacentHTML("afterbegin", `<button type="button" id="back" hidden>← Back to full map <kbd>esc</kbd></button>`);
 function resetAll() {
-  if (quiz) quitQuiz();
   query = ""; $("#q").value = ""; syncChips();
   focus = null; picked = null; pathLinks = null;
   $("#sub-a").value = $("#sub-b").value = ""; $("#connect-out").innerHTML = "";
@@ -20,7 +17,7 @@ $("#focus").addEventListener("click", e => { if (e.target.id === "focus-close") 
 addEventListener("keydown", e => { if (e.key === "Escape") { $("#tour") ? showTour(99) : resetAll(); } });
 // restyle() runs on every state change; piggyback to show/hide the bar
 const _restyle = restyle;
-restyle = function () { _restyle(); $("#back").hidden = !(query || focus || picked || pathLinks || quiz); };
+restyle = function () { _restyle(); $("#back").hidden = !(query || focus || picked || pathLinks); };
 
 // ---------------------------------------------------------------- panel markup
 (document.querySelector(".stack-primary") || $("#spread").closest(".sec")).insertAdjacentHTML("afterend", `
@@ -32,10 +29,6 @@ restyle = function () { _restyle(); $("#back").hidden = !(query || focus || pick
     </div>
     <datalist id="subs">${D.nodes.map(n => `<option value="${n.id}">`).join("")}</datalist>
     <div id="connect-out"></div>
-  </div>
-  <div class="sec" id="quiz">
-    <div class="lbl"><span>Game · when was this?</span><button type="button" class="btn-text" id="quiz-start">Play</button></div>
-    <div id="quiz-body"></div>
   </div>`);
 document.head.insertAdjacentHTML("beforeend", `<style>
   #back {
@@ -54,13 +47,12 @@ document.head.insertAdjacentHTML("beforeend", `<style>
   #back:hover { color: var(--accent); }
   .pair { display: flex; gap: 6px; }
   .pair input { flex: 1; min-width: 0; }
-  #connect-out, #quiz-body { font-size: 12px; }
-  #connect-out:empty, #quiz-body:empty { display: none; }
-  #connect-out .hop, #quiz-body .q {
+  #connect-out { font-size: 12px; }
+  #connect-out:empty { display: none; }
+  #connect-out .hop {
     padding: 7px 8px; margin-top: 6px;
     background: var(--ink); border: 1px solid var(--line); border-radius: var(--r);
   }
-  #quiz-body .chips { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px; }
   .spot { outline: 2px solid var(--accent) !important; outline-offset: 2px; border-radius: var(--r); }
   #tour {
     position: fixed; z-index: 20; max-width: 272px;
@@ -151,57 +143,9 @@ $("#surprise").addEventListener("click", () => {
 const _update = update;
 update = function () { _update(); if (pathLinks && $("#sub-a").value && $("#sub-b").value) readPair(); };
 
-// ---------------------------------------------------------------- quiz: when was this?
-$("#quiz-start").addEventListener("click", startQuiz);
-function startQuiz() {
-  quiz = { round: 0, score: 0, saved: { t, query } };
-  pathLinks = null; focus = null; picked = null; $("#connect-out").innerHTML = "";   // a lit chain would clutter the clue
-  $(".time").hidden = true; $("#spread").parentElement.hidden = true;   // the slider and the spread bars would give it away
-  nextRound();
-}
-function nextRound() {
-  if (quiz.round === 5) return endQuiz();
-  quiz.round++;
-  // a snapshot where at least 3 subs actually say the word (so the map shows something to reason from)
-  const saying = (term, i) => D.nodes.filter(n => n.use[i].some(([w]) => w === term)).length;
-  let m, candidates = [];
-  for (let tries = 0; tries < 30 && candidates.length < 2; tries++) {
-    m = D.memes[Math.random() * D.memes.length | 0];
-    candidates = D.snapshots.map((_, i) => i).filter(i => saying(m.term, i) >= 3);
-  }
-  quiz.answer = candidates[Math.random() * candidates.length | 0];
-  tf = t = quiz.answer; query = m.term; $("#q").value = m.term;
-  update();
-  $("#quiz-body").innerHTML = `<div class="q"><button type="button" class="x" id="quiz-quit">✕ quit</button>Round ${quiz.round}/5 · score ${quiz.score}<br>The map is lit for <span class="kw2">${m.term}</span>. Look at who says it, how many, and the shape of the graph. <b>When is this?</b></div>
-    <div class="chips">${D.snapshots.map((s, i) => `<button type="button" class="chip" data-i="${i}">${s}</button>`).join("")}</div>`;
-  $("#quiz-body .chips").addEventListener("click", e => {
-    const b = e.target.closest(".chip"); if (!b || quiz.locked) return;
-    quiz.locked = true;
-    const g = +b.dataset.i, off = Math.abs(g - quiz.answer), pts = off === 0 ? 3 : off === 1 ? 1 : 0;
-    quiz.score += pts;
-    b.classList.add(pts ? "right" : "wrong");
-    $(`#quiz-body .chip[data-i="${quiz.answer}"]`).classList.add("right");
-    $("#quiz-body .q").insertAdjacentHTML("beforeend", `<div style="margin-top:6px">${pts === 3 ? "Exactly right" : pts ? "One step off" : "Not that one"}, it was <b>${D.snapshots[quiz.answer]}</b> (+${pts}). <button type="button" class="chip" id="quiz-next">next</button></div>`);
-    $("#quiz-next").addEventListener("click", () => { quiz.locked = false; nextRound(); });
-  });
-  $("#quiz-quit").onclick = quitQuiz;
-}
-function quitQuiz() {   // restore what the player was looking at before the game
-  $(".time").hidden = false; $("#spread").parentElement.hidden = false;
-  $("#quiz-body").innerHTML = "";
-  ({ t, query } = quiz.saved); tf = t; $("#q").value = query; quiz = null; syncChips(); update();
-}
-function endQuiz() {
-  $(".time").hidden = false; $("#spread").parentElement.hidden = false;
-  const s = quiz.score;
-  $("#quiz-body").innerHTML = `<div class="q">Final score <b>${s} / 15</b>. ${s >= 12 ? "You can date a subreddit by its vocabulary. That is the whole thesis." : s >= 6 ? "Words drift fast; you caught most of it." : "Memes move faster than they look. Try tracking one with ▶ first."} <button type="button" class="chip" id="quiz-again">play again</button></div>`;
-  $("#quiz-again").addEventListener("click", startQuiz);
-  ({ t, query } = quiz.saved); tf = t; $("#q").value = query; quiz = null; update();
-}
-
 // ---------------------------------------------------------------- first-visit tour
 const TOUR = [
-  ["#q", "Track a meme", "Type an exact word (<i>ai</i>, <i>tariffs</i>, <i>brainrot</i>) and every subreddit saying it lights up, sized by how often."],
+  ["#curated", "Look at this", "Start with a curated outbreak — patient zero, early hosts, and which themes catch the word."],
   ["#memes", "Fastest spreading", "These words jumped into the most new communities over the timeline. Click one."],
   [".time", "Play the timeline", "Hit ▶ and watch the word spread and the map re-knit itself, snapshot by snapshot."],
   ["#connect", "Connect two subreddits", "Pick any two, say r/cpp and r/Parenting, and see the exact words and the chain of communities that link them."],
