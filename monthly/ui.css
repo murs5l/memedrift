@@ -31,6 +31,8 @@ body {
 }
 
 #stage { position: absolute; inset: 0; width: 100%; height: 100%; cursor: grab; }
+/* the 3D renderer centres on its canvas, so the canvas must stop where the panel starts */
+#stage.beside-panel { left: var(--panel-w); width: auto; }
 #stage:active { cursor: grabbing; }
 #stage canvas { display: block; }
 
@@ -504,6 +506,7 @@ a:focus-visible {
     padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px));
   }
   .meme-list { max-height: 120px; }
+  #stage.beside-panel { left: 0; bottom: 46%; width: 100%; height: auto; }
 }
 
 @media (prefers-reduced-motion: reduce) {

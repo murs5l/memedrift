@@ -3,7 +3,7 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600&family=IBM+Plex+Sans:wght@400;500&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
 <link rel="stylesheet" href="ui.css">
 
-<div id="stage" aria-label="Subreddit vocabulary map in 3D"></div>
+<div id="stage" class="beside-panel" aria-label="Subreddit vocabulary map in 3D"></div>
 
 <aside id="panel">
   <header class="brand">
@@ -125,7 +125,9 @@ const show = n => (!S.near || S.near.has(n.id)) && (!query || S.hot.has(n.id));
 const labelled = n => S.hot.has(n.id) || S.near?.has(n.id) || radius(n.subs) > 11;
 
 // --- stage: WebGL force graph ---------------------------------------------
-const G = ForceGraph3D({ controlType: "orbit" })($("#stage"))
+const stage = $("#stage");
+const G = ForceGraph3D({ controlType: "orbit" })(stage)
+  .width(stage.clientWidth).height(stage.clientHeight)   // the library would otherwise size to the window, centring the graph behind the panel
   .backgroundColor("#0b0f16")
   .showNavInfo(false)
   .nodeId("id")
@@ -404,6 +406,7 @@ $("#cross-theme").addEventListener("click", () => {
   update();
 });
 $("#fit").addEventListener("click", () => G.zoomToFit(600, 60));
+addEventListener("resize", () => G.width(stage.clientWidth).height(stage.clientHeight));
 $("#t").max = N - 1;
 if (!/^(localhost|127\.0\.0\.1|)$/.test(location.hostname)) for (const a of document.querySelectorAll("[data-artifact]")) a.href = a.dataset.artifact || a.href;   // published copies live at separate URLs
 update();
