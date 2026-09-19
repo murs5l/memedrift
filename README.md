@@ -5,11 +5,14 @@
 512 subreddits, laid out by the words they share, one snapshot per month from **Jan 2020 → Aug 2026**.
 Type a word and the map shows you who said it first, who caught it next, and which line carried it across.
 
-![Meme Drift demo](media/demo.gif)
+## Demo
 
-▶ **[Watch the full walkthrough (82s, MP4)](media/demo.mp4)** — tracking `openai` across 80 months, guided findings, a shortest path between two strangers, and a Cursor-written explanation of why that path exists.
+The whole walkthrough, playing right here — no download, no click:
 
-The clip runs through, in order:
+![Meme Drift demo: tracking a word across 80 months of Reddit](media/demo.gif)
+
+*The full 82-second session at 3×. For full resolution — the Cursor explanation at the end is easier to read there —
+open [`media/demo.mp4`](media/demo.mp4).* Timings below are the MP4's:
 
 | time | what you're seeing |
 |---|---|
