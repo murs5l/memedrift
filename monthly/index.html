@@ -1,0 +1,440 @@
+<meta charset="utf-8">
+<title>Meme Drift Monthly</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=IBM+Plex+Sans:wght@400;500&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+  /* Single dark world on purpose: a petri dish under a lamp. Painted explicitly for both host themes. */
+  :root {
+    --ink: #0b0f16; --panel: #121821; --panel-2: #1a2230; --line: #263042;
+    --text: #e7eaf0; --muted: #8b95a7; --accent: #ffb454; --accent-2: #ff7a45;
+    --display: "Bricolage Grotesque", "Avenir Next", "Helvetica Neue", sans-serif;
+    --body: "IBM Plex Sans", "Helvetica Neue", Arial, sans-serif;
+    --mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+  }
+  html, body { height: 100%; }
+  body { margin: 0; background: var(--ink); color: var(--text); font: 14px/1.45 var(--body); overflow: hidden; }
+  #stage { position: absolute; inset: 0; width: 100%; height: 100%; cursor: grab; }
+  #stage:active { cursor: grabbing; }
+  .link { stroke: #5b6b86; fill: none; }
+  .node { stroke: var(--ink); stroke-width: 1.5px; cursor: pointer; }
+  .halo { fill: var(--accent); pointer-events: none; opacity: .28; }
+  .label { font: 500 11px var(--mono); fill: #c9d1de; pointer-events: none; paint-order: stroke; stroke: var(--ink); stroke-width: 3px; }
+  .key { font: 500 10px var(--mono); fill: var(--accent); pointer-events: none; paint-order: stroke; stroke: var(--ink); stroke-width: 3px; text-anchor: middle; }
+
+  #panel {
+    position: absolute; top: 16px; left: 16px; width: 310px; max-height: calc(100% - 32px);
+    overflow-y: auto; background: color-mix(in srgb, var(--panel) 92%, transparent);
+    border: 1px solid var(--line); border-radius: 10px; padding: 16px; box-sizing: border-box;
+    backdrop-filter: blur(8px); display: flex; flex-direction: column; gap: 14px;
+  }
+  h1 { font: 700 26px/1 var(--display); margin: 0; letter-spacing: -.01em; }
+  h1 small { display: block; font: 500 12px/1.4 var(--body); color: var(--muted); margin-top: 6px; }
+  .lbl { font: 500 11px var(--mono); text-transform: uppercase; letter-spacing: .08em; color: var(--muted); display: flex; justify-content: space-between; margin-bottom: 6px; }
+  .lbl b { color: var(--accent); font-weight: 500; }
+  input[type=search] { width: 100%; box-sizing: border-box; padding: 8px 10px; border-radius: 6px; border: 1px solid var(--line);
+    background: var(--panel-2); color: var(--text); font: 14px var(--mono); }
+  input[type=search]:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip { border: 1px solid var(--line); background: var(--panel-2); color: var(--text); border-radius: 999px; padding: 3px 10px; font: 12px var(--mono); cursor: pointer; }
+  .chip:hover { border-color: var(--accent); }
+  .chip.on { background: var(--accent); color: var(--ink); border-color: var(--accent); }
+  .cat { display: flex; align-items: center; gap: 6px; }
+  .cat i { width: 9px; height: 9px; border-radius: 50%; display: inline-block; flex: none; }
+  .cat.off { opacity: .35; }
+  .time { display: flex; align-items: center; gap: 10px; }
+  #play { width: 34px; height: 34px; border-radius: 50%; border: 1px solid var(--line); background: var(--panel-2); color: var(--text); cursor: pointer; font-size: 14px; }
+  #play:hover { border-color: var(--accent); }
+  input[type=range] { flex: 1; accent-color: var(--accent); }
+  #year { font: 700 22px var(--display); min-width: 3ch; font-variant-numeric: tabular-nums; }
+  #spread { display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; align-items: end; height: 34px; }
+  #spread div { background: var(--line); border-radius: 2px 2px 0 0; min-height: 2px; }
+  #spread div.now { background: var(--accent); }
+  p.hint { margin: 0; color: var(--muted); font-size: 12px; }
+  details { border-top: 1px solid var(--line); padding-top: 10px; font-size: 12px; color: var(--muted); }
+  summary { cursor: pointer; color: var(--text); font: 500 11px var(--mono); text-transform: uppercase; letter-spacing: .08em; }
+  details p { margin: 8px 0 0; }
+  details b { color: var(--text); font-weight: 500; }
+  code { font: 11px var(--mono); background: var(--panel-2); padding: 1px 4px; border-radius: 3px; }
+  #proof { display: none; border-top: 1px solid var(--line); padding-top: 10px; font-size: 12px; }
+  #proof .side { margin-top: 8px; padding: 8px; background: var(--panel-2); border-radius: 6px; }
+  #proof .side b { font: 500 12px var(--mono); }
+  #proof ul { margin: 6px 0; padding-left: 16px; max-height: 180px; overflow-y: auto; }
+  #proof li { margin: 2px 0; color: var(--muted); }
+  #proof li a { color: var(--text); font: 12px var(--body); }
+  #proof li.none { list-style: none; margin-left: -16px; }
+  #proof a { color: var(--accent); font: 11px var(--mono); text-decoration: none; }
+  #proof a:hover { text-decoration: underline; }
+  #proof .kw { color: var(--accent); font: 700 14px var(--mono); }
+  .link.picked { stroke: var(--accent) !important; stroke-opacity: 1 !important; }
+  #focus { display: none; border-top: 1px solid var(--line); padding-top: 10px; }
+  #focus table { width: 100%; border-collapse: collapse; font-size: 12px; table-layout: fixed; }
+  #focus td { padding: 3px 0; border-bottom: 1px solid var(--line); vertical-align: top; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #focus td:nth-child(2) { width: 34%; }
+  #focus td:last-child { width: 30%; }
+  #focus td:last-child { text-align: right; color: var(--muted); font: 11px var(--mono); white-space: nowrap; }
+  #focus .kw { color: var(--accent); font: 12px var(--mono); }
+  #focus .side { margin: 0 0 8px; padding: 8px; background: var(--panel-2); border-radius: 6px; font-size: 12px; }
+  #focus ul { margin: 6px 0; padding-left: 16px; max-height: 180px; overflow-y: auto; }
+  #focus li a { color: var(--text); text-decoration: none; }
+  button:focus-visible, .chip:focus-visible { outline: 2px solid var(--accent); }
+
+  #tip { position: absolute; pointer-events: none; display: none; max-width: 280px; background: var(--panel); border: 1px solid var(--line);
+    border-radius: 8px; padding: 10px 12px; font-size: 12px; box-shadow: 0 8px 30px #0008; z-index: 5; }
+  #tip h3 { margin: 0 0 4px; font: 700 15px var(--display); }
+  #tip .sub { color: var(--muted); margin-bottom: 6px; }
+  #tip .why { color: var(--muted); margin-top: 8px; border-top: 1px solid var(--line); padding-top: 6px; }
+  #tip .terms span { font: 11px var(--mono); background: var(--panel-2); border-radius: 4px; padding: 1px 5px; margin: 2px 3px 2px 0; display: inline-block; }
+  #tip .terms span.hot { background: var(--accent); color: var(--ink); }
+  #tip .big { font: 700 20px var(--display); color: var(--accent); }
+  #tip .kw { font: 700 15px var(--mono); color: var(--accent); }
+
+  @media (max-width: 600px) {
+    #panel { left: 0; right: 0; top: auto; bottom: 0; width: auto; max-height: 48%; border-radius: 12px 12px 0 0; padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px)); }
+  }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<svg id="stage"></svg>
+
+<aside id="panel">
+  <h1>Meme Drift <small><span id="nsubs"></span> subreddits, pulled together by the words they share. Watch ideas jump the fence, <span id="span"></span>.</small></h1>
+
+  <div id="proof"></div>
+
+  <div>
+    <div class="lbl"><span>Track a meme</span><b id="count"></b></div>
+    <input type="search" id="q" placeholder="exact word… e.g. ai, tariffs, c++" autocomplete="off">
+  </div>
+
+  <div>
+    <div class="lbl"><span>Fastest spreading</span><span>subs using it</span></div>
+    <div class="chips" id="memes"></div>
+  </div>
+
+  <div>
+    <div class="lbl"><span>Spread over time</span></div>
+    <div id="spread"></div>
+  </div>
+
+  <div>
+    <div class="lbl"><span>Timeline</span></div>
+    <div class="time">
+      <button id="play" title="Play">▶</button>
+      <input type="range" id="t" min="0" max="6" value="0" step="any" title="drag, or scroll here to scrub">
+      <span id="year" style="font-size:18px"></span>
+    </div>
+  </div>
+
+  <div id="focus"></div>
+
+  <div>
+    <div class="lbl"><span>Communities</span><span>membership by graph</span></div>
+    <div class="chips" id="cats"></div>
+  </div>
+
+  <details>
+    <summary>How to read the map</summary>
+    <p><b>A line</b> means one subreddit is among the other's 5 closest neighbours at that snapshot, measured by how alike their vocabulary is (cosine similarity of TF-IDF over their latest 100 posts). The word on the line is the single term that contributes most to that similarity.</p>
+    <p><b>Line length is the distance.</b> Each line is a spring whose resting length is <code>40 + 280 × (1 − similarity / max)</code> px: the more words two communities share, the shorter the spring pulls them. Springs compete, so a line can be stretched by everything else tugging on its two ends; the tooltip shows the resting length it wants.</p>
+    <p><b>No line</b> between two bubbles means neither is in the other's top 5 at that snapshot: they may still share words, just fewer than their closer neighbours.</p>
+    <p><b>Bubble size</b> = subscribers. <b>Colour</b> = theme. Only ~10 seed subreddits per theme were named by hand; the other 400 got their colour by label propagation, i.e. by copying whatever their closest neighbours are. Hover a theme chip for the three words its members lean on most.</p>
+  </details>
+
+  <p class="hint">Hover a line or bubble. Click a line for proof. Click a bubble to isolate its neighbours and see the keyword on each line; click empty space to reset. Drag, scroll to zoom. <button class="chip" id="fit">fit to screen</button> <a class="chip" id="other-scale" href="../index.html" data-artifact="" style="text-decoration:none">yearly timeline</a> <a class="chip" id="other-view" href="index3d.html" data-artifact="" style="text-decoration:none">3D view</a></p>
+</aside>
+
+<div id="tip"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
+<script src="data.js"></script>
+<script>
+const D = window.DATA;
+const N = D.snapshots.length;
+const COLORS = ["#4f9dff", "#ffb454", "#7ee081", "#ff6b8a", "#8fd3ff", "#e39cff", "#ffe066", "#ff7a45", "#5dd6c5", "#c77dff", "#9be564", "#ff9ecb", "#63b3ed", "#f6ad55", "#6b7386"];
+const catName = Object.fromEntries(D.categories.map(c => [c.id, c.name]));
+const color = d3.scaleOrdinal().domain(D.categories.map(c => c.id)).range(COLORS.slice(0, D.categories.length - 1).concat("#6b7386"));
+const $ = s => document.querySelector(s);
+
+let t = N - 1, query = "", focus = null, picked = null, playing = null, k = 1;
+let tf = t;             // fractional time: the layout glides between snapshot floor(tf) and ceil(tf)
+let pathLinks = null;   // set by extras.js ("connect two subreddits"): links to light up as a chain
+const activeCats = new Set(D.categories.map(c => c.id));
+const byId = new Map(D.nodes.map(n => [n.id, n]));
+const vmax = d3.max(D.links, l => d3.max(l.history));
+const radius = d3.scaleSqrt().domain([0, d3.max(D.nodes, n => n.subs)]).range([4, 30]);
+const restLength = l => 40 + (1 - l.value / vmax) * 280;
+$("#nsubs").textContent = D.nodes.length;
+$("#span").textContent = `${D.snapshots[0]} → ${D.snapshots[N - 1]}`;
+$("#spread").style.gridTemplateColumns = `repeat(${N}, 1fr)`;   // one bar per snapshot, however many there are
+
+// --- stage ---------------------------------------------------------------
+const svg = d3.select("#stage");
+const g = svg.append("g");
+const linkG = g.append("g"), haloG = g.append("g"), nodeG = g.append("g"), labelG = g.append("g"), keyG = g.append("g");
+const zoom = d3.zoom().scaleExtent([.1, 6]).filter(e => !(e.type === "wheel" && e.shiftKey) && (!e.ctrlKey || e.type === "wheel") && !e.button).on("zoom", e => { g.attr("transform", e.transform); if (Math.abs(e.transform.k - k) > .05) { k = e.transform.k; restyle(); } });
+svg.call(zoom).on("click", () => { focus = null; picked = null; pathLinks = null; restyle(); });
+
+const W = () => innerWidth, H = () => innerHeight;
+// zoom so every bubble is on screen, to the right of the panel (or above it on phones)
+function fit(animate = true) {
+  const nodes = sim.nodes(); if (!nodes.length) return;
+  const [x0, x1] = d3.extent(nodes, d => d.x), [y0, y1] = d3.extent(nodes, d => d.y);
+  const phone = W() <= 600, px = phone ? 0 : 350, py = phone ? H() * .48 : 0;
+  const w = W() - px - 60, h = H() - py - 80;
+  const kk = Math.min(1.5, w / (x1 - x0 + 1), h / (y1 - y0 + 1));
+  const tx = px + 30 + (w - kk * (x1 - x0)) / 2 - kk * x0, ty = 40 + (h - kk * (y1 - y0)) / 2 - kk * y0;
+  (animate ? svg.transition().duration(600) : svg).call(zoom.transform, d3.zoomIdentity.translate(tx, ty).scale(kk));   // no transition on load: rAF may be paused in a background tab
+}
+
+const sim = d3.forceSimulation()
+  .force("charge", d3.forceManyBody().strength(-90).theta(.9))
+  .force("center", d3.forceCenter(W() / 2, H() / 2).strength(.04))
+  .force("collide", d3.forceCollide().radius(d => radius(d.subs) + 4).iterations(1))
+  .force("link", d3.forceLink().id(d => d.id).distance(restLength).strength(l => .1 + .9 * l.value / vmax))
+  .on("tick", () => {
+    link.attr("x1", l => l.source.x).attr("y1", l => l.source.y).attr("x2", l => l.target.x).attr("y2", l => l.target.y);
+    node.attr("cx", d => d.x).attr("cy", d => d.y);
+    halo.attr("cx", d => d.x).attr("cy", d => d.y);
+    label.attr("x", d => d.x).attr("y", d => d.y - radius(d.subs) - 4);
+    key.attr("x", l => (l.source.x + l.target.x) / 2).attr("y", l => (l.source.y + l.target.y) / 2 - 3);
+  });
+addEventListener("resize", () => sim.force("center").x(W() / 2).y(H() / 2));
+
+let link = linkG.selectAll("line"), node = nodeG.selectAll("circle"), halo = haloG.selectAll("circle"), label = labelG.selectAll("text"), key = keyG.selectAll("text");
+
+// --- helpers -------------------------------------------------------------
+const alive = n => n.terms[t].length && activeCats.has(n.cat);
+// exact word match only (plus plural): "ai" must not light up "rain" or "paint"
+const matches = term => term === query || term === query + "s" || term + "s" === query;
+// how often a sub uses the tracked word at snapshot t: mentions per 100 posts (raw count, not tf-idf,
+// so a word everyone says, like "ai", still lights up everyone)
+const heatAt = (n, i) => { let best = 0; for (const [term, c] of n.use[i]) if (matches(term) && c > best) best = c; return best; };
+function heat(n) {   // blended between the two snapshots around tf, so halos grow/shrink instead of popping
+  if (!query) return 0;
+  const [i0, i1, f] = span();
+  return heatAt(n, i0) * (1 - f) + heatAt(n, i1) * f;
+}
+const linksOf = id => D.links.filter(l => l.history[t] && (l.source.id === id || l.target.id === id));
+const other = (l, id) => l.source.id === id ? l.target : l.source;
+
+// --- render at snapshot t ------------------------------------------------
+// value of a link at fractional time: a line that exists only on one side fades in/out instead of popping
+const span = () => { const i0 = Math.floor(tf), i1 = Math.min(N - 1, i0 + 1); return [i0, i1, tf - i0]; };
+const valueAt = l => { const [i0, i1, f] = span(); return l.history[i0] * (1 - f) + l.history[i1] * f; };
+let liveLinks_ = [];
+
+function update() {
+  const [i0, i1] = span();
+  const nodes = D.nodes.filter(n => (n.terms[i0].length || n.terms[i1].length) && activeCats.has(n.cat));
+  const ids = new Set(nodes.map(n => n.id));
+  const links = D.links.filter(l => (l.history[i0] > 0 || l.history[i1] > 0) && ids.has(l.source.id ?? l.source) && ids.has(l.target.id ?? l.target));
+  links.forEach(l => l.value = valueAt(l));
+  liveLinks_ = links;
+
+  link = link.data(links, l => (l.source.id ?? l.source) + "|" + (l.target.id ?? l.target));
+  link.exit().remove();
+  link = link.enter().append("line").attr("class", "link")
+    .on("mouseover", (e, l) => showTip(e, linkTip(l))).on("mousemove", moveTip).on("mouseleave", hideTip)
+    .on("click", (e, l) => { e.stopPropagation(); picked = picked === l ? null : l; restyle(); })
+    .merge(link).attr("stroke-width", l => 1 + 4 * l.value / vmax);
+
+  node = node.data(nodes, n => n.id);
+  node.exit().remove();
+  node = node.enter().append("circle").attr("class", "node").attr("r", n => radius(n.subs)).attr("fill", n => color(n.cat))
+    .call(d3.drag().on("start", (e, d) => { if (!e.active) sim.alphaTarget(.3).restart(); d.fx = d.x; d.fy = d.y; })
+      .on("drag", (e, d) => { d.fx = e.x; d.fy = e.y; })
+      .on("end", (e, d) => { if (!e.active) sim.alphaTarget(0); d.fx = d.fy = null; }))
+    .on("mouseover", (e, n) => showTip(e, nodeTip(n))).on("mousemove", moveTip).on("mouseleave", hideTip)
+    .on("click", (e, n) => { e.stopPropagation(); focus = focus === n.id ? null : n.id; restyle(); })
+    .merge(node);
+
+  halo = halo.data(nodes, n => n.id); halo.exit().remove();
+  halo = halo.enter().append("circle").attr("class", "halo").merge(halo);
+
+  label = label.data(nodes, n => n.id); label.exit().remove();
+  label = label.enter().append("text").attr("class", "label").attr("text-anchor", "middle").text(n => "r/" + n.id).merge(label);
+
+  sim.nodes(nodes); sim.force("link").links(links); sim.alpha(Math.max(sim.alpha(), .4)).restart();
+  showTime();
+  restyle();
+}
+
+function showTime() {
+  const [i0, i1, f] = span();
+  $("#year").innerHTML = f < .02 || f > .98 ? D.snapshots[t] : `${D.snapshots[i0]} <span style="color:var(--muted);font:11px var(--mono)">⇢ ${Math.round(f * 100)}%</span>`;
+  $("#t").value = tf;
+}
+
+// move to any fractional time; cheap path while we stay between the same two snapshots
+function setTime(x) {
+  const before = Math.floor(tf);
+  tf = Math.max(0, Math.min(N - 1, x));
+  t = Math.round(tf);
+  if (Math.floor(tf) !== before) return update();   // the set of live lines changed
+  liveLinks_.forEach(l => l.value = valueAt(l));
+  sim.force("link").distance(restLength).strength(l => .1 + .9 * l.value / vmax);   // re-read the new values
+  sim.alpha(Math.max(sim.alpha(), .12)).restart();
+  link.attr("stroke-width", l => 1 + 4 * l.value / vmax);
+  showTime();
+  restyle();
+}
+
+function restyle() {
+  const heats = new Map(D.nodes.map(n => [n.id, heat(n)]));
+  const hmax = d3.max([...heats.values()]) || 1;
+  const hot = new Set([...heats].filter(([, h]) => h > 0).map(([id]) => id));
+  const fl = focus ? linksOf(focus) : (pathLinks || []);          // lines that get a keyword label
+  const near = focus ? new Set([focus, ...fl.map(l => other(l, focus).id)])
+             : pathLinks ? new Set(pathLinks.flatMap(l => [l.source.id, l.target.id])) : null;
+  const lit = l => focus ? l.source.id === focus || l.target.id === focus : !!pathLinks && pathLinks.includes(l);
+  const show = n => (!near || near.has(n.id)) && (!query || hot.has(n.id));
+  // labels: big bubbles always, everything once zoomed in, plus whatever is lit up
+  const labelled = n => hot.has(n.id) || near?.has(n.id) || radius(n.subs) * k > 9 || k > 2.2;
+
+  halo.attr("r", n => hot.has(n.id) ? radius(n.subs) + 4 + 26 * heats.get(n.id) / hmax : 0);
+  node.attr("opacity", n => show(n) ? 1 : .12)
+      .attr("stroke", n => hot.has(n.id) ? "var(--accent)" : focus === n.id || (pathLinks && near?.has(n.id)) ? "#fff" : "var(--ink)");
+  label.attr("opacity", n => show(n) && labelled(n) ? 1 : 0);
+  link.attr("stroke-opacity", l => {
+    if (near) return lit(l) ? .9 : .02;
+    if (query) return hot.has(l.source.id) && hot.has(l.target.id) ? .8 : .03;
+    return .08 + .4 * l.value / vmax;
+  }).attr("stroke", l => (query && hot.has(l.source.id) && hot.has(l.target.id)) || (near && lit(l)) ? "var(--accent)" : "#5b6b86")
+    .style("pointer-events", l => (near && !lit(l)) || (query && !(hot.has(l.source.id) && hot.has(l.target.id))) ? "none" : "stroke");
+
+  // the exact keyword on each of the focused node's lines
+  key = key.data(fl, l => l.source.id + "|" + l.target.id); key.exit().remove();
+  key = key.enter().append("text").attr("class", "key").merge(key).text(l => l.shared[t][0] || "");
+  sim.tick(0);
+
+  const total = D.nodes.filter(alive).length;
+  $("#count").textContent = query ? `${[...hot].filter(id => alive(byId.get(id))).length} / ${total} subs say it` : "";
+  link.classed("picked", l => l === picked);
+  drawSpread(); drawFocus(fl); drawProof();
+}
+
+// mini bar chart: how many live subs use the tracked word at each snapshot
+function drawSpread() {
+  const el = $("#spread");
+  const counts = D.snapshots.map((_, i) => query ? D.nodes.filter(n => activeCats.has(n.cat) && n.use[i].some(([term]) => matches(term))).length : 0);
+  const m = d3.max(counts) || 1;
+  el.innerHTML = counts.map((c, i) => `<div class="${i === t ? "now" : ""}" style="height:${Math.max(6, 100 * c / m)}%" title="${D.snapshots[i]}: ${c} subs"></div>`).join("");
+}
+
+// panel: the focused sub's neighbours, the one keyword linking each, and the distance
+function drawFocus(fl) {
+  const el = $("#focus");
+  if (!focus) { el.style.display = "none"; return; }
+  const n = byId.get(focus);
+  const rows = fl.sort((a, b) => b.value - a.value).map(l => {
+    const o = other(l, focus);
+    return `<tr><td>r/${o.id}</td><td><span class="kw">${l.shared[t][0] || "n/a"}</span></td><td>${Math.round(restLength(l))}px · ${Math.round(100 * l.value / vmax)}</td></tr>`;
+  }).join("");
+  el.style.display = "block";
+  el.innerHTML = `<div class="lbl"><span>r/${n.id} · ${D.snapshots[t]}</span><span>keyword · distance · sim <button class="x" id="focus-close">✕</button></span></div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:6px">signature word: <span class="kw">${n.terms[t][0]?.[0] ?? "n/a"}</span></div>
+    <div id="focus-posts"></div><table>${rows}</table>`;
+  // tracking a word? list every post of this sub that uses it
+  if (query && heat(n)) loadPosts(D.snapshots[t]).then(() => { const f = $("#focus-posts"); if (f && focus === n.id) f.innerHTML = postList(n.id, query, heat(n)); });
+}
+
+// panel: the receipts for one line: every post title that uses the keyword, on both sides
+const esc = x => String(x).replace(/[&<>"]/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;"}[c]));
+const redditSearch = (sub, q) => `https://www.reddit.com/r/${sub}/search/?q=${encodeURIComponent(q)}&restrict_sr=1`;
+const wordRe = w => new RegExp("(?<![a-z0-9])" + w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "s?(?![a-z0-9])", "i");
+const loaded = {};
+// posts_<year>.js holds all 100 titles per sub for that year; fetched once, the first time a proof needs it
+function loadPosts(year) {
+  return loaded[year] ??= new Promise((ok, fail) => {
+    if (window.POSTS?.[year]) return ok();
+    const el = document.createElement("script");
+    el.src = `posts_${year}.js`; el.onload = ok; el.onerror = () => fail(new Error("posts file missing"));
+    document.head.appendChild(el);
+  });
+}
+function postList(sub, word, mentions) {
+  const all = window.POSTS[D.snapshots[t]][sub] || [];
+  const hits = all.filter(x => wordRe(word).test(x));
+  const items = hits.map(x => `<li><a href="${redditSearch(sub, x.slice(0, 80))}" target="_blank" rel="noopener" title="find this post on reddit">${esc(x)}</a></li>`).join("");
+  return `<div class="side"><b>r/${sub}</b> · <span class="kw">${esc(word)}</span> in ${hits.length} of its 100 post titles${mentions != null ? `, ${mentions} mentions incl. bodies` : ""}
+    <ul>${items || "<li class=none>only inside post bodies, not in any title</li>"}</ul>
+    <a href="${redditSearch(sub, word)}" target="_blank" rel="noopener">search r/${sub} for it now ↗</a></div>`;
+}
+function drawProof() {
+  const el = $("#proof");
+  const p = picked && picked.proof[t];
+  if (!p) { el.style.display = "none"; return; }
+  const kw = picked.shared[t][0], year = D.snapshots[t];
+  el.style.display = "block";
+  el.innerHTML = `<div class="lbl"><span>Proof · ${year}</span><button class="x" id="proof-close">✕ close</button></div>
+    <div>r/${picked.source.id} ↔ r/${picked.target.id} are linked by <span class="kw">${esc(kw)}</span>
+    (similarity ${Math.round(100 * picked.value / vmax)}/100, also share ${picked.shared[t].slice(1).map(esc).join(", ")})</div>
+    <div class="side">loading the ${year} posts…</div>`;
+  loadPosts(year).then(() => {
+    if (picked?.proof[t] !== p) return;   // user moved on
+    el.querySelector(".side").outerHTML = postList(picked.source.id, kw, p[0]) + postList(picked.target.id, kw, p[1]) +
+      `<div style="color:var(--muted);margin-top:8px">Each sub's 100 most recent posts at the ${year} snapshot (Arctic Shift archive). Click a title to find it on Reddit.</div>`;
+  }).catch(e => el.querySelector(".side").textContent = e.message);
+}
+
+// --- tooltips ------------------------------------------------------------
+const tip = $("#tip");
+const termHtml = terms => `<div class="terms">${terms.map(x => { const s = Array.isArray(x) ? x[0] : x; return `<span class="${query && matches(s) ? "hot" : ""}">${s}</span>`; }).join("")}</div>`;
+const nodeTip = n => `<h3>r/${n.id}</h3><div class="sub">${catName[n.cat]} · ${d3.format(".2s")(n.subs)} members</div>
+  ${query && heat(n) ? `<div class="sub">says <span class="kw">${query}</span> ${heat(n)}× in its last 100 posts</div>` : ""}
+  <div class="sub">signature word, ${D.snapshots[t]}: <span class="kw">${n.terms[t][0]?.[0] ?? "n/a"}</span></div>${termHtml(n.terms[t].slice(1, 13))}`;
+function linkTip(l) {
+  const a = l.source, b = l.target, sim100 = Math.round(100 * l.value / vmax);
+  return `<h3>r/${a.id} ↔ r/${b.id}</h3>
+    <div class="sub">linked by</div><div class="kw">${l.shared[t][0] ?? "n/a"}</div>
+    ${l.proof[t] ? `<div class="sub" style="margin-top:4px">r/${a.id} says it ${l.proof[t][0]}×, r/${b.id} ${l.proof[t][1]}× · <b style="color:var(--text)">click the line for all the posts</b></div>` : ""}
+    <div class="sub" style="margin-top:6px">also share:</div>${termHtml(l.shared[t].slice(1))}
+    <div class="why"><b style="color:var(--text)">Why this distance?</b> Similarity ${sim100}/100 (the strongest pair on the map = 100), from ${D.snapshots[t]}'s posts.
+    The spring wants to rest at <b style="color:var(--text)">${Math.round(restLength(l))}px</b>: 40px for the closest possible pair, 320px for the loosest. Higher similarity → shorter line.</div>`;
+}
+function showTip(e, html) { tip.innerHTML = html; tip.style.display = "block"; moveTip(e); }
+function moveTip(e) { tip.style.left = Math.min(e.clientX + 14, W() - 300) + "px"; tip.style.top = Math.min(e.clientY + 14, H() - 260) + "px"; }
+function hideTip() { tip.style.display = "none"; }
+
+// --- controls ------------------------------------------------------------
+$("#q").addEventListener("input", e => { query = e.target.value.trim().toLowerCase(); syncChips(); restyle(); });
+$("#t").addEventListener("input", e => setTime(+e.target.value));
+// scroll over the timeline (or shift+scroll over the map) to scrub time continuously
+const scrub = e => { e.preventDefault(); setTime(tf + (e.deltaY + e.deltaX) * .004); };
+$(".time").addEventListener("wheel", scrub, { passive: false });
+$("#spread").addEventListener("wheel", scrub, { passive: false });
+$("#stage").addEventListener("wheel", e => { if (e.shiftKey) scrub(e); }, { passive: false, capture: true });
+const SNAPSHOT_MS = 3000;   // playback speed: one snapshot every 3 s, gliding
+function stopPlay() { if (playing) cancelAnimationFrame(playing); playing = null; $("#play").textContent = "▶"; }
+$("#play").addEventListener("click", () => {
+  if (playing) return stopPlay();
+  if (tf >= N - 1 - .01) setTime(0);
+  $("#play").textContent = "⏸";
+  let last = performance.now();
+  const step = now => { setTime(tf + (now - last) / SNAPSHOT_MS); last = now; if (tf >= N - 1) return stopPlay(); playing = requestAnimationFrame(step); };
+  playing = requestAnimationFrame(step);
+});
+
+$("#memes").innerHTML = D.memes.map(m => `<button class="chip" data-term="${m.term}" title="${m.spread.join(" → ")}">${m.term} <span style="opacity:.6">${m.spread[0]}→${m.spread[N - 1]}</span></button>`).join("");
+$("#memes").addEventListener("click", e => {
+  const b = e.target.closest(".chip"); if (!b) return;
+  query = query === b.dataset.term ? "" : b.dataset.term; $("#q").value = query; syncChips(); restyle();
+});
+function syncChips() { document.querySelectorAll("#memes .chip").forEach(b => b.classList.toggle("on", b.dataset.term === query)); }
+
+$("#cats").innerHTML = D.categories.map(c => `<button class="chip cat" data-cat="${c.id}" title="${c.size} subreddits · ${c.words}"><i style="background:${color(c.id)}"></i>${c.name} <span style="opacity:.5">${c.size}</span></button>`).join("");
+$("#cats").addEventListener("click", e => {
+  const b = e.target.closest(".chip"); if (!b) return;
+  const c = b.dataset.cat;
+  activeCats.has(c) ? activeCats.delete(c) : activeCats.add(c);
+  b.classList.toggle("off", !activeCats.has(c));
+  update();
+});
+
+$("#fit").addEventListener("click", () => fit());
+$("#t").max = N - 1;
+if (!/^(localhost|127\.0\.0\.1|)$/.test(location.hostname)) for (const a of document.querySelectorAll("[data-artifact]")) a.href = a.dataset.artifact || a.href;   // published copies live at separate URLs
+update();
+sim.tick(120); fit(false);   // pre-settle so the first frame is already a readable map
+sim.on("end", () => { fit(false); sim.on("end", null); });   // and once more when it has cooled
+</script>
+<script src="extras.js"></script>
