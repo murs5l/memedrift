@@ -1,12 +1,12 @@
-# Meme Drift
+# Meme Drift - Zeitgeist
 
-**How does it spread?** 512 subreddits (the ~480 biggest SFW subs + 120 niche seeds), pulled together by the words they share, one snapshot per year 2020 → 2026.
+**How does it spread?** 512 subreddits (the ~480 biggest SFW subs + 120 niche seeds), pulled together by the words they share, one snapshot per month from Jan 2020 → Aug 2026.
 Type a word and watch it jump the fence between communities.
 
 ## Run
 
 ```bash
-python3 build_data.py        # pulls ~3,600 snapshots from Arctic Shift (public, no keys), ~20 min, cached
+python3 build_data.py        # monthly from 2020 (first run is long; cached after)
 python3 -m http.server 8765  # 2D: http://localhost:8765   3D: http://localhost:8765/index3d.html
 ```
 
@@ -16,8 +16,8 @@ Stdlib + numpy. No API keys, no torch.
 
 ## Timescales
 
-- `python3 build_data.py` → yearly, 2020 → 2026 (7 snapshots), in this folder.
-- `python3 build_data.py monthly` → the last 12 months, one snapshot per month, in `monthly/` (its own `data.js`, post files and page copies). Both share `cache/`.
+- `python3 build_data.py` → monthly, Jan 2020 → Aug 2026, in this folder.
+- `python3 build_data.py monthly` → the last 12 months only, in `monthly/` (its own `data.js`, post files and page copies). Both share `cache/`.
 
 ## Explore & play (`extras.js`, loaded by every page)
 

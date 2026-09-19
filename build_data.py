@@ -1,5 +1,5 @@
 """
-Meme Drift data pipeline. Python stdlib + numpy. No API keys, no torch.
+Meme Drift - Zeitgeist data pipeline. Python stdlib + numpy. No API keys, no torch.
 
 Pulls ~100 posts per subreddit per snapshot from Arctic Shift (public Pushshift
 successor), builds TF-IDF vectors, and writes data.js for index.html.
@@ -24,15 +24,19 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 CACHE = os.path.join(HERE, "cache")
 os.makedirs(CACHE, exist_ok=True)
 
-# One snapshot per year: the 100 most recent posts before each date.
-YEARLY = [
-    ("2020", "2020-07-01"), ("2021", "2021-07-01"), ("2022", "2022-07-01"),
-    ("2023", "2023-07-01"), ("2024", "2024-07-01"), ("2025", "2025-07-01"),
-    ("2026", "2026-09-01"),
-]
-# `python3 build_data.py monthly`: the last 12 months, one snapshot per month, written to ./monthly/
-MONTHLY = [(f"{y if m > 1 else y - 1}-{(m - 2) % 12 + 1:02d}", f"{y}-{m:02d}-01")     # label = the month the posts fall in
-           for y, m in [(2025, m) for m in range(10, 13)] + [(2026, m) for m in range(1, 10)]]
+# One snapshot per month from Jan 2020 through Aug 2026 (posts before the 1st of the next month).
+def _months(y0, m0, y1, m1):
+    out, y, m = [], y0, m0
+    while (y, m) <= (y1, m1):
+        # label = calendar month of the posts; date = first day of the following month
+        py, pm = (y, m - 1) if m > 1 else (y - 1, 12)
+        out.append((f"{py}-{pm:02d}", f"{y}-{m:02d}-01"))
+        y, m = (y + 1, 1) if m == 12 else (y, m + 1)
+    return out
+
+YEARLY = _months(2020, 2, 2026, 9)   # labels 2020-01 … 2026-08
+# `python3 build_data.py monthly`: last 12 months only, written to ./monthly/
+MONTHLY = YEARLY[-12:]
 MODE = sys.argv[1] if len(sys.argv) > 1 else "yearly"
 SNAPSHOTS = MONTHLY if MODE == "monthly" else YEARLY
 OUT = os.path.join(HERE, "monthly") if MODE == "monthly" else HERE
@@ -262,7 +266,7 @@ def main():
         for page in ("index.html", "index3d.html"):
             html = open(os.path.join(HERE, page)).read()
             html = html.replace(f'href="monthly/{page}"', f'href="../{page}"').replace(">monthly timeline<", ">yearly timeline<")
-            html = html.replace("<title>Meme Drift", "<title>Meme Drift Monthly")
+            html = html.replace("<title>Meme Drift - Zeitgeist", "<title>Meme Drift - Zeitgeist · Monthly")
             open(os.path.join(OUT, page), "w").write(html)
     print(f"wrote data.js: {len(nodes)} nodes, {len(links)} links, {len(categories)} communities")
     for c in categories:

@@ -1,13 +1,13 @@
 <meta charset="utf-8">
-<title>Meme Drift Monthly 3D</title>
+<title>Meme Drift - Zeitgeist · 3D</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600&family=IBM+Plex+Sans:wght@400;500&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
-<link rel="stylesheet" href="ui.css">
+<link rel="stylesheet" href="ui.css?v=ym4">
 
 <div id="stage" class="beside-panel" aria-label="Subreddit vocabulary map in 3D"></div>
 
 <aside id="panel">
   <header class="brand">
-    <h1>Meme Drift</h1>
+    <h1>Meme Drift - Zeitgeist</h1>
     <p class="lede"><span id="nsubs"></span> subreddits in 3D, clustered by the words they share. Watch ideas jump the fence, <span id="span"></span>.</p>
     <nav class="nav" aria-label="Views">
       <a id="other-view" href="index.html" data-artifact="">2D map</a>
@@ -80,10 +80,22 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/0.160.0/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/3d-force-graph@1.73.4/dist/3d-force-graph.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three-spritetext@1.8.2/dist/three-spritetext.min.js"></script>
-<script src="data.js"></script>
+<script src="data.js?v=months3"></script>
 <script>
 const D = window.DATA;
 const N = D.snapshots.length;
+const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+const parseSnap = s => {
+  const m = String(s).match(/^(\d{4})-(\d{2})$/);
+  return m ? { year: m[1], month: m[2], mon: MONTHS[+m[2] - 1] } : { year: String(s), month: "", mon: "" };
+};
+const snapLabel = s => { const p = parseSnap(s); return p.month ? `${p.year} ${p.month}` : p.year; };
+const snapHTML = s => {
+  const p = parseSnap(s);
+  return p.month
+    ? `<span class="y-year">${p.year}</span><span class="y-mo">${p.mon}</span>`
+    : `<span class="y-year">${p.year}</span>`;
+};
 const COLORS = ["#4f9dff", "#ffb454", "#7ee081", "#ff6b8a", "#8fd3ff", "#e39cff", "#ffe066", "#ff7a45", "#5dd6c5", "#c77dff", "#9be564", "#ff9ecb", "#63b3ed", "#f6ad55", "#6b7386"];
 const catName = Object.fromEntries(D.categories.map(c => [c.id, c.name]));
 const color = d3.scaleOrdinal().domain(D.categories.map(c => c.id)).range(COLORS.slice(0, D.categories.length - 1).concat("#6b7386"));
@@ -100,7 +112,7 @@ const vmax = d3.max(D.links, l => d3.max(l.history));
 const radius = d3.scaleSqrt().domain([0, d3.max(D.nodes, n => n.subs)]).range([4, 30]);
 const restLength = l => 40 + (1 - l.value / vmax) * 280;   // same spring law as the 2D map, now in 3 dimensions
 $("#nsubs").textContent = D.nodes.length;
-$("#span").textContent = `${D.snapshots[0]} → ${D.snapshots[N - 1]}`;
+$("#span").textContent = `${snapLabel(D.snapshots[0])} → ${snapLabel(D.snapshots[N - 1])}`;
 $("#spread").style.gridTemplateColumns = `repeat(${N}, 1fr)`;   // one bar per snapshot, however many there are
 
 // --- helpers -------------------------------------------------------------
@@ -190,13 +202,28 @@ function update() {
   restyle();
 }
 function showTime() {
-  const [i0, i1, f] = span();
+  const [i0, , f] = span();
   const settled = f < .02 || f > .98;
-  const label = settled ? D.snapshots[t] : D.snapshots[i0];
-  // Fixed two-line slot so the year never shifts when the blend % appears/disappears
-  $("#year").innerHTML = `<span class="y">${label}</span><span class="pct">${settled ? "" : `⇢ ${Math.round(f * 100)}%`}</span>`;
+  const snap = settled ? D.snapshots[t] : D.snapshots[i0];
+  const badge = snapHTML(snap);
+  const pct = settled ? "" : `⇢ ${Math.round(f * 100)}%`;
+  const el = $("#year");
+  const y = el.querySelector(".y");
+  const p = el.querySelector(".pct");
+  if (!y || !p) {
+    el.innerHTML = `<span class="y">${badge}</span><span class="pct">${pct}</span>`;
+  } else {
+    if (y.innerHTML !== badge) {
+      y.innerHTML = badge;
+      el.classList.remove("tick");
+      void el.offsetWidth;
+      el.classList.add("tick");
+    }
+    p.textContent = pct;
+  }
   $("#t").value = tf;
 }
+
 let lastFrame = 0;
 function setTime(x) {   // fractional time; the WebGL refresh is throttled to ~15 fps
   const before = Math.floor(tf);
@@ -275,8 +302,8 @@ function drawOutbreak() {
     .map(([id]) => `<span class="ob-theme"><i style="background:${color(id)}"></i>${catName[id]}</span>`).join("");
   const later = hostsAt(N - 1).length;
   el.hidden = false;
-  el.innerHTML = `<div class="ob-title">Outbreak · <button type="button" class="btn-text" id="outbreak-jump">${D.snapshots[first]}</button></div>
-    <p><span class="kw2">${safe(query)}</span> clears ${hostsAt(first).length} subs by ${D.snapshots[first]}${later > hostsAt(first).length ? ` → ${later} by ${D.snapshots[N - 1]}` : ""}.</p>
+  el.innerHTML = `<div class="ob-title">Outbreak · <button type="button" class="btn-text" id="outbreak-jump">${snapLabel(D.snapshots[first])}</button></div>
+    <p><span class="kw2">${safe(query)}</span> clears ${hostsAt(first).length} subs by ${snapLabel(D.snapshots[first])}${later > hostsAt(first).length ? ` → ${later} by ${snapLabel(D.snapshots[N - 1])}` : ""}.</p>
     <p class="muted">Early hosts: ${early.map(n => `r/${n.id}`).join(", ")}</p>
     <div class="ob-themes">${themeBits}</div>`;
   $("#outbreak-jump").onclick = () => setTime(first);
@@ -346,14 +373,21 @@ const scrub = e => { e.preventDefault(); setTime(tf + (e.deltaY + e.deltaX) * .0
 $(".time").addEventListener("wheel", scrub, { passive: false });
 $("#spread").addEventListener("wheel", scrub, { passive: false });
 $("#stage").addEventListener("wheel", e => { if (e.shiftKey) { e.stopPropagation(); scrub(e); } }, { passive: false, capture: true });
-const SNAPSHOT_MS = 3000;
+const PLAY_MS = 16000;   // full timeline glide
 function stopPlay() { if (playing) cancelAnimationFrame(playing); playing = null; $("#play").textContent = "▶"; }
 $("#play").addEventListener("click", () => {
   if (playing) return stopPlay();
   if (tf >= N - 1 - .01) setTime(0);
   $("#play").textContent = "⏸";
   let last = performance.now();
-  const step = now => { setTime(tf + (now - last) / SNAPSHOT_MS); last = now; if (tf >= N - 1) return stopPlay(); playing = requestAnimationFrame(step); };
+  const speed = (N - 1) / PLAY_MS;   // snapshots per ms
+  const step = now => {
+    const dt = now - last;
+    last = now;
+    if (tf >= N - 1) return stopPlay();
+    setTime(Math.min(N - 1, tf + dt * speed));
+    playing = requestAnimationFrame(step);
+  };
   playing = requestAnimationFrame(step);
 });
 const CURATED = [

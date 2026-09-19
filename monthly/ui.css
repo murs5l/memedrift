@@ -309,21 +309,46 @@ input[type=search]:focus,
   align-items: flex-end;
   justify-content: center;
   flex: none;
-  width: 5.5rem;
-  min-height: 2.1em;
-  font: 600 18px/1.05 var(--display);
-  font-variant-numeric: tabular-nums;
-  letter-spacing: -.02em;
-  color: var(--accent);
+  min-width: 5.75rem;
+  min-height: 2.4em;
   text-align: right;
+  line-height: 1;
+  gap: 3px;
+}
+#year .y {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-variant-numeric: tabular-nums;
+}
+#year .y-year {
+  font: 600 18px/1 var(--display);
+  letter-spacing: -.03em;
+  color: var(--text);
+}
+#year .y-mo {
+  font: 600 11px/1 var(--mono);
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--accent-ink);
+  padding: 5px 7px 4px;
+  border-radius: 2px;
+  background: var(--accent);
+  border: none;
+}
+#year.tick .y-mo {
+  animation: mo-tick .35s ease-out;
+}
+@keyframes mo-tick {
+  0% { transform: translateY(2px); filter: brightness(1.35); }
+  100% { transform: translateY(0); filter: brightness(1); }
 }
 #year .pct {
   display: block;
-  margin-top: 2px;
+  min-height: 11px;
   font: 500 10px/1 var(--mono);
-  letter-spacing: 0;
+  letter-spacing: .02em;
   color: var(--muted);
-  min-height: 10px;
   white-space: nowrap;
 }
 
