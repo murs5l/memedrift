@@ -6,7 +6,7 @@
 let quiz = null;   // pathLinks is declared by the page
 
 // ---------------------------------------------------------------- back / reset
-$("#panel").insertAdjacentHTML("afterbegin", `<button id="back" hidden>← back to the full map <span class="muted">esc</span></button>`);
+$("#panel").insertAdjacentHTML("afterbegin", `<button type="button" id="back" hidden>← Back to full map <kbd>esc</kbd></button>`);
 function resetAll() {
   if (quiz) quitQuiz();
   query = ""; $("#q").value = ""; syncChips();
@@ -23,39 +23,52 @@ const _restyle = restyle;
 restyle = function () { _restyle(); $("#back").hidden = !(query || focus || picked || pathLinks || quiz); };
 
 // ---------------------------------------------------------------- panel markup
-$("#q").parentElement.insertAdjacentHTML("afterend", `
-  <div id="connect">
-    <div class="lbl"><span>Connect two subreddits</span><button class="chip" id="surprise" title="two random subs from different themes">surprise me</button></div>
-    <div style="display:flex;gap:6px">
-      <input list="subs" id="sub-a" placeholder="r/…" autocomplete="off"><input list="subs" id="sub-b" placeholder="r/…" autocomplete="off">
+(document.querySelector(".stack-primary") || $("#spread").closest(".sec")).insertAdjacentHTML("afterend", `
+  <div class="sec" id="connect">
+    <div class="lbl"><span>Connect two subreddits</span><button type="button" class="btn-text" id="surprise" title="Two random subs from different themes">Surprise me</button></div>
+    <div class="pair">
+      <input list="subs" id="sub-a" placeholder="r/…" autocomplete="off" aria-label="First subreddit">
+      <input list="subs" id="sub-b" placeholder="r/…" autocomplete="off" aria-label="Second subreddit">
     </div>
     <datalist id="subs">${D.nodes.map(n => `<option value="${n.id}">`).join("")}</datalist>
     <div id="connect-out"></div>
   </div>
-  <div id="quiz">
-    <div class="lbl"><span>Game: when was this?</span><button class="chip" id="quiz-start">play</button></div>
+  <div class="sec" id="quiz">
+    <div class="lbl"><span>Game · when was this?</span><button type="button" class="btn-text" id="quiz-start">Play</button></div>
     <div id="quiz-body"></div>
   </div>`);
 document.head.insertAdjacentHTML("beforeend", `<style>
-  #back { position: sticky; top: -16px; z-index: 3; margin: -16px -16px 0; padding: 10px 16px; border: 0; border-bottom: 1px solid var(--line); border-radius: 10px 10px 0 0;
-    background: var(--accent); color: var(--ink); font: 600 13px var(--body); text-align: left; cursor: pointer; }
-  #back .muted { color: var(--ink); opacity: .6; font: 11px var(--mono); float: right; margin-top: 2px; }
-  #back:hover { filter: brightness(1.08); }
-  .x { float: right; cursor: pointer; color: var(--muted); font: 12px var(--mono); border: 0; background: none; padding: 0 2px; }
-  .x:hover { color: var(--text); }
-  #connect input, #quiz input { flex: 1; min-width: 0; box-sizing: border-box; padding: 7px 9px; border-radius: 6px; border: 1px solid var(--line); background: var(--panel-2); color: var(--text); font: 13px var(--mono); }
-  #connect input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
-  #connect-out, #quiz-body { font-size: 12px; margin-top: 8px; }
-  #connect-out .hop, #quiz-body .q { padding: 6px 8px; background: var(--panel-2); border-radius: 6px; margin-top: 6px; }
-  .kw2 { color: var(--accent); font: 600 12px var(--mono); }
-  .muted { color: var(--muted); }
-  #quiz-body .chips { margin-top: 6px; }
-  .chip.right { background: #7ee081; color: var(--ink); border-color: #7ee081; }
-  .chip.wrong { background: #ff6b8a; color: var(--ink); border-color: #ff6b8a; }
-  .spot { outline: 2px solid var(--accent) !important; outline-offset: 3px; border-radius: 8px; }
-  #tour { position: fixed; z-index: 20; max-width: 280px; background: var(--panel); border: 1px solid var(--accent); border-radius: 10px; padding: 12px 14px; font-size: 13px; box-shadow: 0 10px 40px #000a; }
-  #tour b { font: 700 15px var(--display); display: block; margin-bottom: 4px; }
-  #tour .row { display: flex; justify-content: space-between; align-items: center; margin-top: 10px; }
+  #back {
+    position: sticky; top: -18px; z-index: 3;
+    margin: -18px -16px 0; padding: 10px 16px;
+    border: 0; border-bottom: 1px solid var(--line); border-radius: 0;
+    background: var(--panel-2); color: var(--text);
+    font: 500 12.5px var(--body); text-align: left; cursor: pointer;
+    display: flex; justify-content: space-between; align-items: center; gap: 8px;
+  }
+  #back[hidden] { display: none !important; }
+  #back kbd {
+    font: 11px var(--mono); color: var(--muted);
+    border: 1px solid var(--line); border-radius: 3px; padding: 1px 5px;
+  }
+  #back:hover { color: var(--accent); }
+  .pair { display: flex; gap: 6px; }
+  .pair input { flex: 1; min-width: 0; }
+  #connect-out, #quiz-body { font-size: 12px; }
+  #connect-out:empty, #quiz-body:empty { display: none; }
+  #connect-out .hop, #quiz-body .q {
+    padding: 7px 8px; margin-top: 6px;
+    background: var(--ink); border: 1px solid var(--line); border-radius: var(--r);
+  }
+  #quiz-body .chips { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px; }
+  .spot { outline: 2px solid var(--accent) !important; outline-offset: 2px; border-radius: var(--r); }
+  #tour {
+    position: fixed; z-index: 20; max-width: 272px;
+    background: var(--panel); border: 1px solid var(--line-strong); border-radius: var(--r);
+    padding: 12px 14px; font-size: 13px; box-shadow: 0 6px 24px #0008;
+  }
+  #tour b { font: 600 14px var(--display); display: block; margin-bottom: 4px; letter-spacing: -.01em; }
+  #tour .row { display: flex; justify-content: space-between; align-items: center; margin-top: 10px; gap: 8px; }
 </style>`);
 
 // ---------------------------------------------------------------- connect
@@ -117,7 +130,7 @@ function connect(a, b) {
         cur = nxt; return h; }).join("");
     pathLinks = hops;
   }
-  out.innerHTML = `<button class="x" id="connect-clear" title="clear">✕ clear</button>` + directHtml + chainHtml + `<div class="muted" style="margin-top:6px">Chain lit on the map. Move the timeline to see it change.</div>`;
+  out.innerHTML = `<button type="button" class="x" id="connect-clear" title="clear">✕ clear</button>` + directHtml + chainHtml + `<div class="muted" style="margin-top:6px">Chain lit on the map. Move the timeline to see it change.</div>`;
   $("#connect-clear").onclick = () => { pathLinks = null; $("#sub-a").value = $("#sub-b").value = ""; out.innerHTML = ""; restyle(); };
   focus = null; picked = null;
   restyle();
@@ -159,8 +172,8 @@ function nextRound() {
   quiz.answer = candidates[Math.random() * candidates.length | 0];
   tf = t = quiz.answer; query = m.term; $("#q").value = m.term;
   update();
-  $("#quiz-body").innerHTML = `<div class="q"><button class="x" id="quiz-quit">✕ quit</button>Round ${quiz.round}/5 · score ${quiz.score}<br>The map is lit for <span class="kw2">${m.term}</span>. Look at who says it, how many, and the shape of the graph. <b>When is this?</b></div>
-    <div class="chips">${D.snapshots.map((s, i) => `<button class="chip" data-i="${i}">${s}</button>`).join("")}</div>`;
+  $("#quiz-body").innerHTML = `<div class="q"><button type="button" class="x" id="quiz-quit">✕ quit</button>Round ${quiz.round}/5 · score ${quiz.score}<br>The map is lit for <span class="kw2">${m.term}</span>. Look at who says it, how many, and the shape of the graph. <b>When is this?</b></div>
+    <div class="chips">${D.snapshots.map((s, i) => `<button type="button" class="chip" data-i="${i}">${s}</button>`).join("")}</div>`;
   $("#quiz-body .chips").addEventListener("click", e => {
     const b = e.target.closest(".chip"); if (!b || quiz.locked) return;
     quiz.locked = true;
@@ -168,7 +181,7 @@ function nextRound() {
     quiz.score += pts;
     b.classList.add(pts ? "right" : "wrong");
     $(`#quiz-body .chip[data-i="${quiz.answer}"]`).classList.add("right");
-    $("#quiz-body .q").insertAdjacentHTML("beforeend", `<div style="margin-top:6px">${pts === 3 ? "Exactly right" : pts ? "One step off" : "Not that one"}, it was <b>${D.snapshots[quiz.answer]}</b> (+${pts}). <button class="chip" id="quiz-next">next</button></div>`);
+    $("#quiz-body .q").insertAdjacentHTML("beforeend", `<div style="margin-top:6px">${pts === 3 ? "Exactly right" : pts ? "One step off" : "Not that one"}, it was <b>${D.snapshots[quiz.answer]}</b> (+${pts}). <button type="button" class="chip" id="quiz-next">next</button></div>`);
     $("#quiz-next").addEventListener("click", () => { quiz.locked = false; nextRound(); });
   });
   $("#quiz-quit").onclick = quitQuiz;
@@ -181,7 +194,7 @@ function quitQuiz() {   // restore what the player was looking at before the gam
 function endQuiz() {
   $(".time").hidden = false; $("#spread").parentElement.hidden = false;
   const s = quiz.score;
-  $("#quiz-body").innerHTML = `<div class="q">Final score <b>${s} / 15</b>. ${s >= 12 ? "You can date a subreddit by its vocabulary. That is the whole thesis." : s >= 6 ? "Words drift fast; you caught most of it." : "Memes move faster than they look. Try tracking one with ▶ first."} <button class="chip" id="quiz-again">play again</button></div>`;
+  $("#quiz-body").innerHTML = `<div class="q">Final score <b>${s} / 15</b>. ${s >= 12 ? "You can date a subreddit by its vocabulary. That is the whole thesis." : s >= 6 ? "Words drift fast; you caught most of it." : "Memes move faster than they look. Try tracking one with ▶ first."} <button type="button" class="chip" id="quiz-again">play again</button></div>`;
   $("#quiz-again").addEventListener("click", startQuiz);
   ({ t, query } = quiz.saved); tf = t; $("#q").value = query; quiz = null; update();
 }
@@ -203,15 +216,16 @@ function showTour(i) {
   const [sel, title, text] = TOUR[i], target = $(sel);
   target.classList.add("spot");
   if (sel !== "#stage") target.scrollIntoView({ block: "nearest" });
-  document.body.insertAdjacentHTML("beforeend", `<div id="tour"><b>${title}</b>${text}<div class="row"><span class="muted">${i + 1} / ${TOUR.length}</span><span><button class="chip" id="tour-skip">skip</button> <button class="chip on" id="tour-next">${i === TOUR.length - 1 ? "done" : "next"}</button></span></div></div>`);
+  document.body.insertAdjacentHTML("beforeend", `<div id="tour" role="dialog" aria-label="${title}"><b>${title}</b>${text}<div class="row"><span class="muted">${i + 1} / ${TOUR.length}</span><span><button type="button" class="chip" id="tour-skip">Skip</button> <button type="button" class="chip on" id="tour-next">${i === TOUR.length - 1 ? "Done" : "Next"}</button></span></div></div>`);
   const r = target.getBoundingClientRect(), card = $("#tour");
-  const phone = innerWidth <= 600;
+  const phone = innerWidth <= 720;
   card.style.left = phone ? "16px" : Math.min(innerWidth - 300, sel === "#stage" ? innerWidth / 2 - 140 : r.right + 14) + "px";
   card.style.top = phone ? "16px" : Math.max(16, Math.min(innerHeight - 180, sel === "#stage" ? innerHeight / 2 - 60 : r.top)) + "px";
   $("#tour-next").onclick = () => showTour(i + 1);
   $("#tour-skip").onclick = () => showTour(99);
 }
-document.querySelector(".hint").insertAdjacentHTML("beforeend", ` <button class="chip" id="tour-btn">tour</button>`);
+const hintNav = document.querySelector(".hint .nav-inline") || document.querySelector(".hint");
+hintNav.insertAdjacentHTML("beforeend", ` <button type="button" class="btn-text" id="tour-btn">Tour</button>`);
 $("#tour-btn").addEventListener("click", () => showTour(0));
 let seen = false;
 try { seen = !!localStorage.getItem("memedrift-tour"); } catch {}

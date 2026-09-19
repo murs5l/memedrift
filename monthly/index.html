@@ -1,134 +1,50 @@
 <meta charset="utf-8">
 <title>Meme Drift Monthly</title>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=IBM+Plex+Sans:wght@400;500&family=IBM+Plex+Mono:wght@400;500&display=swap">
-<style>
-  /* Single dark world on purpose: a petri dish under a lamp. Painted explicitly for both host themes. */
-  :root {
-    --ink: #0b0f16; --panel: #121821; --panel-2: #1a2230; --line: #263042;
-    --text: #e7eaf0; --muted: #8b95a7; --accent: #ffb454; --accent-2: #ff7a45;
-    --display: "Bricolage Grotesque", "Avenir Next", "Helvetica Neue", sans-serif;
-    --body: "IBM Plex Sans", "Helvetica Neue", Arial, sans-serif;
-    --mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
-  }
-  html, body { height: 100%; }
-  body { margin: 0; background: var(--ink); color: var(--text); font: 14px/1.45 var(--body); overflow: hidden; }
-  #stage { position: absolute; inset: 0; width: 100%; height: 100%; cursor: grab; }
-  #stage:active { cursor: grabbing; }
-  .link { stroke: #5b6b86; fill: none; }
-  .node { stroke: var(--ink); stroke-width: 1.5px; cursor: pointer; }
-  .halo { fill: var(--accent); pointer-events: none; opacity: .28; }
-  .label { font: 500 11px var(--mono); fill: #c9d1de; pointer-events: none; paint-order: stroke; stroke: var(--ink); stroke-width: 3px; }
-  .key { font: 500 10px var(--mono); fill: var(--accent); pointer-events: none; paint-order: stroke; stroke: var(--ink); stroke-width: 3px; text-anchor: middle; }
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600&family=IBM+Plex+Sans:wght@400;500&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="ui.css">
 
-  #panel {
-    position: absolute; top: 16px; left: 16px; width: 310px; max-height: calc(100% - 32px);
-    overflow-y: auto; background: color-mix(in srgb, var(--panel) 92%, transparent);
-    border: 1px solid var(--line); border-radius: 10px; padding: 16px; box-sizing: border-box;
-    backdrop-filter: blur(8px); display: flex; flex-direction: column; gap: 14px;
-  }
-  h1 { font: 700 26px/1 var(--display); margin: 0; letter-spacing: -.01em; }
-  h1 small { display: block; font: 500 12px/1.4 var(--body); color: var(--muted); margin-top: 6px; }
-  .lbl { font: 500 11px var(--mono); text-transform: uppercase; letter-spacing: .08em; color: var(--muted); display: flex; justify-content: space-between; margin-bottom: 6px; }
-  .lbl b { color: var(--accent); font-weight: 500; }
-  input[type=search] { width: 100%; box-sizing: border-box; padding: 8px 10px; border-radius: 6px; border: 1px solid var(--line);
-    background: var(--panel-2); color: var(--text); font: 14px var(--mono); }
-  input[type=search]:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
-  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
-  .chip { border: 1px solid var(--line); background: var(--panel-2); color: var(--text); border-radius: 999px; padding: 3px 10px; font: 12px var(--mono); cursor: pointer; }
-  .chip:hover { border-color: var(--accent); }
-  .chip.on { background: var(--accent); color: var(--ink); border-color: var(--accent); }
-  .cat { display: flex; align-items: center; gap: 6px; }
-  .cat i { width: 9px; height: 9px; border-radius: 50%; display: inline-block; flex: none; }
-  .cat.off { opacity: .35; }
-  .time { display: flex; align-items: center; gap: 10px; }
-  #play { width: 34px; height: 34px; border-radius: 50%; border: 1px solid var(--line); background: var(--panel-2); color: var(--text); cursor: pointer; font-size: 14px; }
-  #play:hover { border-color: var(--accent); }
-  input[type=range] { flex: 1; accent-color: var(--accent); }
-  #year { font: 700 22px var(--display); min-width: 3ch; font-variant-numeric: tabular-nums; }
-  #spread { display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; align-items: end; height: 34px; }
-  #spread div { background: var(--line); border-radius: 2px 2px 0 0; min-height: 2px; }
-  #spread div.now { background: var(--accent); }
-  p.hint { margin: 0; color: var(--muted); font-size: 12px; }
-  details { border-top: 1px solid var(--line); padding-top: 10px; font-size: 12px; color: var(--muted); }
-  summary { cursor: pointer; color: var(--text); font: 500 11px var(--mono); text-transform: uppercase; letter-spacing: .08em; }
-  details p { margin: 8px 0 0; }
-  details b { color: var(--text); font-weight: 500; }
-  code { font: 11px var(--mono); background: var(--panel-2); padding: 1px 4px; border-radius: 3px; }
-  #proof { display: none; border-top: 1px solid var(--line); padding-top: 10px; font-size: 12px; }
-  #proof .side { margin-top: 8px; padding: 8px; background: var(--panel-2); border-radius: 6px; }
-  #proof .side b { font: 500 12px var(--mono); }
-  #proof ul { margin: 6px 0; padding-left: 16px; max-height: 180px; overflow-y: auto; }
-  #proof li { margin: 2px 0; color: var(--muted); }
-  #proof li a { color: var(--text); font: 12px var(--body); }
-  #proof li.none { list-style: none; margin-left: -16px; }
-  #proof a { color: var(--accent); font: 11px var(--mono); text-decoration: none; }
-  #proof a:hover { text-decoration: underline; }
-  #proof .kw { color: var(--accent); font: 700 14px var(--mono); }
-  .link.picked { stroke: var(--accent) !important; stroke-opacity: 1 !important; }
-  #focus { display: none; border-top: 1px solid var(--line); padding-top: 10px; }
-  #focus table { width: 100%; border-collapse: collapse; font-size: 12px; table-layout: fixed; }
-  #focus td { padding: 3px 0; border-bottom: 1px solid var(--line); vertical-align: top; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  #focus td:nth-child(2) { width: 34%; }
-  #focus td:last-child { width: 30%; }
-  #focus td:last-child { text-align: right; color: var(--muted); font: 11px var(--mono); white-space: nowrap; }
-  #focus .kw { color: var(--accent); font: 12px var(--mono); }
-  #focus .side { margin: 0 0 8px; padding: 8px; background: var(--panel-2); border-radius: 6px; font-size: 12px; }
-  #focus ul { margin: 6px 0; padding-left: 16px; max-height: 180px; overflow-y: auto; }
-  #focus li a { color: var(--text); text-decoration: none; }
-  button:focus-visible, .chip:focus-visible { outline: 2px solid var(--accent); }
-
-  #tip { position: absolute; pointer-events: none; display: none; max-width: 280px; background: var(--panel); border: 1px solid var(--line);
-    border-radius: 8px; padding: 10px 12px; font-size: 12px; box-shadow: 0 8px 30px #0008; z-index: 5; }
-  #tip h3 { margin: 0 0 4px; font: 700 15px var(--display); }
-  #tip .sub { color: var(--muted); margin-bottom: 6px; }
-  #tip .why { color: var(--muted); margin-top: 8px; border-top: 1px solid var(--line); padding-top: 6px; }
-  #tip .terms span { font: 11px var(--mono); background: var(--panel-2); border-radius: 4px; padding: 1px 5px; margin: 2px 3px 2px 0; display: inline-block; }
-  #tip .terms span.hot { background: var(--accent); color: var(--ink); }
-  #tip .big { font: 700 20px var(--display); color: var(--accent); }
-  #tip .kw { font: 700 15px var(--mono); color: var(--accent); }
-
-  @media (max-width: 600px) {
-    #panel { left: 0; right: 0; top: auto; bottom: 0; width: auto; max-height: 48%; border-radius: 12px 12px 0 0; padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px)); }
-  }
-  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
-</style>
-
-<svg id="stage"></svg>
+<svg id="stage" aria-label="Subreddit vocabulary map"></svg>
 
 <aside id="panel">
-  <h1>Meme Drift <small><span id="nsubs"></span> subreddits, pulled together by the words they share. Watch ideas jump the fence, <span id="span"></span>.</small></h1>
+  <header class="brand">
+    <h1>Meme Drift</h1>
+    <p class="lede"><span id="nsubs"></span> subreddits, clustered by the words they share. Watch ideas jump the fence, <span id="span"></span>.</p>
+    <nav class="nav" aria-label="Views">
+      <a href="index.html" aria-current="page">2D map</a>
+      <a id="other-view" href="index3d.html" data-artifact="">3D view</a>
+    </nav>
+  </header>
 
   <div id="proof"></div>
 
-  <div>
-    <div class="lbl"><span>Track a meme</span><b id="count"></b></div>
-    <input type="search" id="q" placeholder="exact word… e.g. ai, tariffs, c++" autocomplete="off">
-  </div>
+  <div class="stack-primary">
+    <div class="sec">
+      <div class="lbl"><span>Track a meme</span><b id="count"></b></div>
+      <input type="search" id="q" placeholder="exact word… e.g. ai, tariffs, c++" autocomplete="off" aria-label="Track a meme">
+    </div>
 
-  <div>
-    <div class="lbl"><span>Fastest spreading</span><span>subs using it</span></div>
-    <div class="chips" id="memes"></div>
-  </div>
-
-  <div>
-    <div class="lbl"><span>Spread over time</span></div>
-    <div id="spread"></div>
-  </div>
-
-  <div>
-    <div class="lbl"><span>Timeline</span></div>
-    <div class="time">
-      <button id="play" title="Play">▶</button>
-      <input type="range" id="t" min="0" max="6" value="0" step="any" title="drag, or scroll here to scrub">
-      <span id="year" style="font-size:18px"></span>
+    <div class="sec">
+      <div class="lbl"><span>Timeline</span></div>
+      <div class="time">
+        <button id="play" title="Play timeline" aria-label="Play timeline">▶</button>
+        <input type="range" id="t" min="0" max="6" value="0" step="any" title="Drag or scroll to scrub" aria-label="Timeline">
+        <span id="year"></span>
+      </div>
+      <div class="lbl"><span>Spread over time</span></div>
+      <div id="spread" role="img" aria-label="Subreddits using the tracked word over time"></div>
     </div>
   </div>
 
   <div id="focus"></div>
 
-  <div>
-    <div class="lbl"><span>Communities</span><span>membership by graph</span></div>
-    <div class="chips" id="cats"></div>
+  <div class="sec">
+    <div class="lbl"><span>Fastest spreading</span><span class="side">subs using it</span></div>
+    <div class="meme-list" id="memes" role="listbox" aria-label="Fastest spreading words"></div>
+  </div>
+
+  <div class="sec">
+    <div class="lbl"><span>Communities</span><button type="button" class="btn-text" id="cats-none" title="Turn off every theme">Clear all</button></div>
+    <div class="cats" id="cats"></div>
   </div>
 
   <details>
@@ -136,10 +52,14 @@
     <p><b>A line</b> means one subreddit is among the other's 5 closest neighbours at that snapshot, measured by how alike their vocabulary is (cosine similarity of TF-IDF over their latest 100 posts). The word on the line is the single term that contributes most to that similarity.</p>
     <p><b>Line length is the distance.</b> Each line is a spring whose resting length is <code>40 + 280 × (1 − similarity / max)</code> px: the more words two communities share, the shorter the spring pulls them. Springs compete, so a line can be stretched by everything else tugging on its two ends; the tooltip shows the resting length it wants.</p>
     <p><b>No line</b> between two bubbles means neither is in the other's top 5 at that snapshot: they may still share words, just fewer than their closer neighbours.</p>
-    <p><b>Bubble size</b> = subscribers. <b>Colour</b> = theme. Only ~10 seed subreddits per theme were named by hand; the other 400 got their colour by label propagation, i.e. by copying whatever their closest neighbours are. Hover a theme chip for the three words its members lean on most.</p>
+    <p><b>Bubble size</b> = subscribers. <b>Colour</b> = theme. Only ~10 seed subreddits per theme were named by hand; the other 400 got their colour by label propagation, i.e. by copying whatever their closest neighbours are. Hover a theme for the three words its members lean on most.</p>
   </details>
 
-  <p class="hint">Hover a line or bubble. Click a line for proof. Click a bubble to isolate its neighbours and see the keyword on each line; click empty space to reset. Drag, scroll to zoom. <button class="chip" id="fit">fit to screen</button> <a class="chip" id="other-scale" href="../index.html" data-artifact="" style="text-decoration:none">yearly timeline</a> <a class="chip" id="other-view" href="index3d.html" data-artifact="" style="text-decoration:none">3D view</a></p>
+  <p class="hint">Hover a line or bubble. Click a line for proof. Click a bubble to isolate its neighbours; click empty space to reset. Drag to pan, scroll to zoom.
+    <span class="nav-inline">
+      <button type="button" class="btn-text" id="fit">Fit to screen</button>
+    </span>
+  </p>
 </aside>
 
 <div id="tip"></div>
@@ -178,7 +98,7 @@ const W = () => innerWidth, H = () => innerHeight;
 function fit(animate = true) {
   const nodes = sim.nodes(); if (!nodes.length) return;
   const [x0, x1] = d3.extent(nodes, d => d.x), [y0, y1] = d3.extent(nodes, d => d.y);
-  const phone = W() <= 600, px = phone ? 0 : 350, py = phone ? H() * .48 : 0;
+  const phone = W() <= 720, px = phone ? 0 : 380, py = phone ? H() * .46 : 0;
   const w = W() - px - 60, h = H() - py - 80;
   const kk = Math.min(1.5, w / (x1 - x0 + 1), h / (y1 - y0 + 1));
   const tx = px + 30 + (w - kk * (x1 - x0)) / 2 - kk * x0, ty = 40 + (h - kk * (y1 - y0)) / 2 - kk * y0;
@@ -260,7 +180,10 @@ function update() {
 
 function showTime() {
   const [i0, i1, f] = span();
-  $("#year").innerHTML = f < .02 || f > .98 ? D.snapshots[t] : `${D.snapshots[i0]} <span style="color:var(--muted);font:11px var(--mono)">⇢ ${Math.round(f * 100)}%</span>`;
+  const settled = f < .02 || f > .98;
+  const label = settled ? D.snapshots[t] : D.snapshots[i0];
+  // Fixed two-line slot so the year never shifts when the blend % appears/disappears
+  $("#year").innerHTML = `<span class="y">${label}</span><span class="pct">${settled ? "" : `⇢ ${Math.round(f * 100)}%`}</span>`;
   $("#t").value = tf;
 }
 
@@ -414,19 +337,24 @@ $("#play").addEventListener("click", () => {
   playing = requestAnimationFrame(step);
 });
 
-$("#memes").innerHTML = D.memes.map(m => `<button class="chip" data-term="${m.term}" title="${m.spread.join(" → ")}">${m.term} <span style="opacity:.6">${m.spread[0]}→${m.spread[N - 1]}</span></button>`).join("");
+$("#memes").innerHTML = D.memes.map(m => `<button type="button" class="meme" role="option" data-term="${m.term}" title="${m.spread.join(" → ")}"><span>${m.term}</span><span class="spread">${m.spread[0]}→${m.spread[N - 1]}</span></button>`).join("");
 $("#memes").addEventListener("click", e => {
-  const b = e.target.closest(".chip"); if (!b) return;
+  const b = e.target.closest(".meme"); if (!b) return;
   query = query === b.dataset.term ? "" : b.dataset.term; $("#q").value = query; syncChips(); restyle();
 });
-function syncChips() { document.querySelectorAll("#memes .chip").forEach(b => b.classList.toggle("on", b.dataset.term === query)); }
+function syncChips() { document.querySelectorAll("#memes .meme").forEach(b => b.classList.toggle("on", b.dataset.term === query)); }
 
-$("#cats").innerHTML = D.categories.map(c => `<button class="chip cat" data-cat="${c.id}" title="${c.size} subreddits · ${c.words}"><i style="background:${color(c.id)}"></i>${c.name} <span style="opacity:.5">${c.size}</span></button>`).join("");
+$("#cats").innerHTML = D.categories.map(c => `<button type="button" class="cat" data-cat="${c.id}" title="${c.size} subreddits · ${c.words}"><i style="background:${color(c.id)}"></i>${c.name} <span>${c.size}</span></button>`).join("");
 $("#cats").addEventListener("click", e => {
-  const b = e.target.closest(".chip"); if (!b) return;
+  const b = e.target.closest(".cat"); if (!b) return;
   const c = b.dataset.cat;
   activeCats.has(c) ? activeCats.delete(c) : activeCats.add(c);
   b.classList.toggle("off", !activeCats.has(c));
+  update();
+});
+$("#cats-none").addEventListener("click", () => {
+  activeCats.clear();
+  document.querySelectorAll("#cats .cat").forEach(b => b.classList.add("off"));
   update();
 });
 
