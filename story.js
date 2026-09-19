@@ -7,6 +7,8 @@
     kicker: "A finding",
     menuTitle: "claude — meaning handoff",
     menuBlurb: "Gaming character → AI model",
+    finding: "One spelling, two eras of meaning.",
+    why: "Early on the map pins <b>claude</b> in r/GTA (Claude Speed). Years later the same string sits in AI/Coding hosts — Anthropic’s model. The graph records a semantic takeover without reading the posts for sense.",
     title: "One word, two meanings",
     steps: [
       {
@@ -21,7 +23,7 @@
           { op: "focus", id: "GTA" },
           { op: "annotate", ids: ["GTA"] },
           { op: "waitMs", ms: 350 },
-          { op: "zoomTo", ids: ["GTA"] },
+          { op: "zoomTo", ids: ["GTA"], neighbors: false, pad: 90 },
           { op: "waitMs", ms: 400 },
         ],
       },
@@ -37,7 +39,7 @@
           { op: "annotate", ids: ["GTA"] },
           { op: "spot", sel: "#spread" },
           { op: "waitMs", ms: 350 },
-          { op: "zoomTo", ids: ["GTA"] },
+          { op: "zoomTo", ids: ["GTA"], neighbors: false, pad: 90 },
           { op: "waitMs", ms: 350 },
         ],
       },
@@ -49,7 +51,7 @@
         actions: [
           { op: "spot", sel: "#spread" },
           { op: "annotate", ids: ["GTA"] },
-          { op: "zoomTo", ids: ["GTA"] },
+          { op: "zoomTo", ids: ["GTA"], neighbors: false, pad: 90 },
         ],
       },
       {
@@ -64,7 +66,7 @@
           { op: "annotate", ids: ["ChatGPT"] },
           { op: "spot", sel: "#outbreak" },
           { op: "waitMs", ms: 350 },
-          { op: "zoomTo", ids: ["ChatGPT"] },
+          { op: "zoomTo", ids: ["ChatGPT"], neighbors: false, pad: 90 },
           { op: "waitMs", ms: 350 },
         ],
       },
@@ -78,7 +80,7 @@
           { op: "focus", id: "ChatGPT" },
           { op: "annotate", ids: ["ChatGPT"] },
           { op: "spot", sel: "#focus" },
-          { op: "zoomTo", ids: ["ChatGPT"] },
+          { op: "zoomTo", ids: ["ChatGPT"], neighbors: false, pad: 90 },
         ],
       },
       {
@@ -92,7 +94,7 @@
           { op: "clearFocus" },
           { op: "annotate", ids: ["ChatGPT", "singularity", "programming", "learnprogramming"] },
           { op: "waitMs", ms: 400 },
-          { op: "zoomTo", ids: ["ChatGPT", "singularity", "programming", "learnprogramming"] },
+          { op: "zoomTo", ids: ["ChatGPT", "singularity", "programming", "learnprogramming"], neighbors: false, pad: 150 },
           { op: "waitMs", ms: 400 },
         ],
       },
@@ -106,7 +108,7 @@
           { op: "clearFocus" },
           { op: "annotate", ids: ["ChatGPT", "singularity", "programming"] },
           { op: "spot", sel: "#q" },
-          { op: "zoomTo", ids: ["ChatGPT", "singularity", "programming"] },
+          { op: "zoomTo", ids: ["ChatGPT", "singularity", "programming"], neighbors: false, pad: 140 },
         ],
       },
       {
@@ -131,6 +133,8 @@
     kicker: "A finding",
     menuTitle: "openai — two neighborhoods",
     menuBlurb: "Same company: AI talk vs market talk",
+    finding: "Same company, two far-apart neighborhoods.",
+    why: "For years <b>openai</b> lives almost only in AI hosts. Later Finance (stocks / StockMarket) co-hosts the same name. Distance on the map shows dual framing — capability talk vs market-object talk — as association, not causation.",
     title: "One company, two neighborhoods",
     steps: [
       {
@@ -183,7 +187,7 @@
           { op: "clearFocus" },
           { op: "annotate", ids: ["OpenAI", "singularity", "ChatGPT", "stocks"] },
           { op: "waitMs", ms: 400 },
-          { op: "zoomTo", ids: ["OpenAI", "singularity", "ChatGPT", "stocks"], neighbors: false, pad: 260 },
+          { op: "zoomTo", ids: ["OpenAI", "singularity", "ChatGPT", "stocks"], neighbors: false, pad: 150 },
           { op: "waitMs", ms: 400 },
         ],
       },
@@ -199,7 +203,7 @@
           { op: "annotate", ids: ["OpenAI", "ChatGPT", "singularity", "StockMarket", "stocks"] },
           { op: "spot", sel: "#spread" },
           { op: "waitMs", ms: 400 },
-          { op: "zoomTo", ids: ["OpenAI", "ChatGPT", "singularity", "StockMarket", "stocks"], neighbors: false, pad: 280 },
+          { op: "zoomTo", ids: ["OpenAI", "ChatGPT", "singularity", "StockMarket", "stocks"], neighbors: false, pad: 170 },
           { op: "waitMs", ms: 450 },
         ],
       },
@@ -239,7 +243,7 @@
           { op: "clearFocus" },
           { op: "annotate", ids: ["OpenAI", "ChatGPT", "singularity", "StockMarket", "stocks"] },
           { op: "spot", sel: "#q" },
-          { op: "zoomTo", ids: ["OpenAI", "ChatGPT", "singularity", "StockMarket", "stocks"], neighbors: false, pad: 300 },
+          { op: "zoomTo", ids: ["OpenAI", "ChatGPT", "singularity", "StockMarket", "stocks"], neighbors: false, pad: 180 },
         ],
       },
       {
@@ -296,7 +300,7 @@
       <span class="story-kicker">Findings</span>
       <button type="button" class="story-chooser-x" aria-label="Close">×</button>
     </div>
-    <p class="story-chooser-lead">Pick a guided path. The map will move with you.</p>
+    <p class="story-chooser-lead">Guided paths on the live map. Each one shows a real pattern in who says a word — and why that pattern is worth watching.</p>
     <div class="story-chooser-list"></div>`;
   if (brand) brand.insertAdjacentElement("afterend", chooser);
   else $("#panel").insertAdjacentElement("afterbegin", chooser);
@@ -307,7 +311,11 @@
     b.type = "button";
     b.className = "story-pick";
     b.dataset.id = s.id;
-    b.innerHTML = `<span class="story-pick-title">${s.menuTitle}</span><span class="story-pick-blurb">${s.menuBlurb}</span>`;
+    b.innerHTML = `
+      <span class="story-pick-title">${s.menuTitle}</span>
+      <span class="story-pick-blurb">${s.menuBlurb}</span>
+      <span class="story-pick-finding"><b>Finding.</b> ${s.finding}</span>
+      <span class="story-pick-why"><b>Why it matters.</b> ${s.why}</span>`;
     b.onclick = () => { hideChooser(); enterStory(s.id); };
     list.appendChild(b);
   });
@@ -382,7 +390,7 @@
     const is3d = typeof G !== "undefined" && G && typeof G.zoomToFit === "function" && stageEl && stageEl.tagName !== "svg";
     if (is3d) {
       const set = new Set(ids);
-      G.zoomToFit(750, 80, n => set.has(n.id));
+      G.zoomToFit(750, 48, n => set.has(n.id));
       return;
     }
 
@@ -401,7 +409,8 @@
       y0 = Math.min(y0, n.y - r);
       y1 = Math.max(y1, n.y + r);
     }
-    const pad = padExtra != null ? padExtra : 180;
+    // Slightly tighter than full-fit so r/ labels stay readable (map labels scale with k).
+    const pad = padExtra != null ? padExtra : 110;
     x0 -= pad; x1 += pad; y0 -= pad; y1 += pad;
     const phone = innerWidth <= 720;
     const px = phone ? 0 : (parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--panel-w")) || 360);
@@ -410,8 +419,8 @@
     const h = Math.max(120, innerHeight - py - 64);
     const spanX = Math.max(x1 - x0, 40);
     const spanY = Math.max(y1 - y0, 40);
-    const maxK = 1.65;
-    const minK = 0.45;
+    const maxK = 2.35;
+    const minK = 0.5;
     let kk = Math.min(w / spanX, h / spanY);
     kk = Math.max(minK, Math.min(maxK, kk));
     const tx = px + 24 + (w - kk * spanX) / 2 - kk * x0;
