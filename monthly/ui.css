@@ -288,8 +288,7 @@ input[type=search]:focus,
 .cat.off { opacity: .32; }
 
 .time { display: flex; align-items: center; gap: 8px; }
-#play {
-  width: 30px;
+#play, #speed {
   height: 30px;
   flex: none;
   border-radius: var(--r);
@@ -297,12 +296,22 @@ input[type=search]:focus,
   background: var(--panel-2);
   color: var(--text);
   cursor: pointer;
-  font-size: 11px;
   line-height: 1;
   display: grid;
   place-items: center;
 }
-#play:hover { border-color: var(--line-strong); color: var(--accent); }
+#play {
+  width: 30px;
+  font-size: 11px;
+}
+#speed {
+  min-width: 34px;
+  padding: 0 6px;
+  font: 600 11px/1 var(--mono);
+  letter-spacing: .02em;
+  color: var(--muted);
+}
+#play:hover, #speed:hover { border-color: var(--line-strong); color: var(--accent); }
 #year {
   display: flex;
   flex-direction: column;
@@ -483,6 +492,7 @@ button:focus-visible,
 .cat:focus-visible,
 .btn-text:focus-visible,
 #play:focus-visible,
+#speed:focus-visible,
 a:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
@@ -518,6 +528,51 @@ a:focus-visible {
 #tip .kw { font: 600 14px var(--mono); color: var(--accent); }
 
 .kw2 { color: var(--accent); font: 600 13px var(--mono); }
+
+#data-fresh {
+  position: fixed;
+  left: calc(var(--panel-w) + 16px);
+  bottom: 16px;
+  z-index: 8;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: min(420px, calc(100vw - var(--panel-w) - 32px));
+  padding: 10px 12px;
+  background: var(--panel);
+  border: 1px solid var(--accent);
+  border-radius: var(--r);
+  font: 500 12px/1.3 var(--body);
+  color: var(--text);
+  box-shadow: 0 8px 24px #0007;
+}
+#data-fresh[hidden] { display: none !important; }
+#data-fresh .df-msg { flex: 1; }
+#data-fresh .df-go {
+  flex: none;
+  border: 0;
+  border-radius: 2px;
+  background: var(--accent);
+  color: var(--accent-ink);
+  font: 600 11px var(--mono);
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  padding: 6px 10px;
+  cursor: pointer;
+}
+#data-fresh .df-x {
+  flex: none;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 2px;
+}
+@media (max-width: 720px) {
+  #data-fresh { left: 12px; right: 12px; bottom: calc(46% + 12px); max-width: none; }
+}
 
 @media (max-width: 720px) {
   :root { --panel-w: 100%; }
