@@ -14,7 +14,12 @@ function resetAll() {
 $("#back").addEventListener("click", resetAll);
 $("#proof").addEventListener("click", e => { if (e.target.id === "proof-close") { picked = null; restyle(); } });
 $("#focus").addEventListener("click", e => { if (e.target.id === "focus-close") { focus = null; restyle(); } });
-addEventListener("keydown", e => { if (e.key === "Escape") { $("#tour") ? showTour(99) : resetAll(); } });
+addEventListener("keydown", e => {
+  if (e.key !== "Escape") return;
+  if (window.storyActive) return;   // story.js handles Esc (capture) and exits itself
+  if ($("#tour")) showTour(99);
+  else resetAll();
+});
 // restyle() runs on every state change; piggyback to show/hide the bar
 const _restyle = restyle;
 restyle = function () { _restyle(); $("#back").hidden = !(query || focus || picked || pathLinks); };
