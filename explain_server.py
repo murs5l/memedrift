@@ -14,6 +14,9 @@ from __future__ import annotations
 
 import json
 import os
+import random
+import secrets
+import socket
 import traceback
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -25,53 +28,59 @@ EXPLAIN_STORE = EXPLAIN_WORK / "store"
 PORT = int(os.environ.get("PORT", "8765"))
 MODEL = os.environ.get("CURSOR_MODEL", "composer-2.5")
 
-SYSTEM = """You are explaining a Reddit vocabulary map to a curious student who keeps asking WHY.
+SYSTEM = """You are a memeticist reading a map of Reddit hosts. Words are memes; subreddits are the populations they live in. The map only tells you *that* two hosts share language this month. Your job is to say *what idea was spreading, mutating, or cohabiting* — not how the map was computed.
 
-How the map works (use this in your reasoning):
-- Communities (subreddits) sit near each other when their post *titles* share distinctive words (TF-IDF / cosine).
-- An edge’s bridge word is the vocabulary that pulls two subs together that month — not proof that one caused the other.
-- Themes (News, Finance, AI, …) are neighborhood labels; distance on the map ≈ different vocab worlds.
+Never mention TF-IDF, cosine, similarity scores, mention-count arithmetic, springs, layout, or “the map pulled them together.” Those are instruments. Talk about the meme.
 
-Your job is to ANSWER THE WHY QUESTION, not recite the JSON:
-1. State the why in the first sentence (because…).
-2. Give a short chain of reasoning: shared topic/framing → bridge word(s) → why that puts these hosts in the same neighborhood that month.
-3. Use only the provided evidence (themes, signatures, bridge words, mention counts, snapshot). Do not invent posts, events, or sentiment.
-4. Associations only — never “X caused Y,” but you MAY say “they co-host this language because both were oriented toward [topic framing].”
-5. Concise: 2 short paragraphs, ~4–6 sentences total. Prefer insight over lists of similarities.
-6. Light Markdown: **bold** the month, the tracked word (if any), and the key bridge word(s). Subs as r/name. No headings, bullets, or code fences.
-7. Do NOT edit files or use tools. Reply with the explanation only.
+Each reply is a new reading. Do not reuse a template (“Because in MONTH both r/A and r/B were posting about…”). Do not repeat the Answer inside Reason.
+
+Reply in exactly two labeled blocks, nothing else:
+
+**Answer.** One or two sentences. The punch: what shared practice, frame, or mutating meaning made these communities kin this month.
+
+**Reason.** Deeper, and it must not restate the Answer. Tell the meme’s evolution: where the idea likely lived, how its sense or host shifted, why *these* communities were both carrying it, what it was doing in each world. Use themes, signature words, and the bridge word as cultural clues — not as a checklist to recap. 4–7 sentences. Association only, never “X infected Y.” Do not invent posts, dates, or events that are not implied by the evidence.
+
+Light Markdown: **bold** the meme/bridge word and the month. Subs as r/name. No bullets, no headings besides Answer/Reason. Do not edit files or use tools.
 """
+
+LENSES = (
+    "Treat the shared word as a meme looking for hosts: where it can live, where it mutates.",
+    "Ask what everyday ritual or problem both communities were performing with this language.",
+    "Assume the word might be a homonym or a sense-shift until the evidence says otherwise.",
+    "Follow the idea’s career: who needed it as identity, who needed it as a tool, who needed it as a joke.",
+    "Look under the word for the practice (training, decorating, cursing, speculating) that jumped hosts.",
+    "Read it as cohabitation, not influence: two worlds using the same token for adjacent lives.",
+)
 
 
 def why_question(context: dict) -> str:
     kind = context.get("kind") or "selection"
     snap = context.get("snapshot") or "this month"
     tracked = context.get("tracked_word")
-    track_bit = f' while tracking **{tracked}**' if tracked else ""
+    track_bit = f" The tracked meme is **{tracked}**." if tracked else ""
     if kind == "edge":
         nodes = context.get("nodes") or []
         a = nodes[0]["id"] if len(nodes) > 0 else "?"
         b = nodes[1]["id"] if len(nodes) > 1 else "?"
         edges = context.get("edges") or []
         bridge = (edges[0] or {}).get("bridge_word") if edges else None
-        bridge_bit = f' (bridge word “{bridge}”)' if bridge else ""
+        meme = f" The hinge-word is **{bridge}**." if bridge else ""
         return (
-            f"WHY question: In {snap}{track_bit}, why are r/{a} and r/{b} linked on this map{bridge_bit}? "
-            f"What does that shared vocabulary imply about the kind of conversation they were both in?"
+            f"In {snap}, r/{a} and r/{b} are co-hosting language.{meme}{track_bit} "
+            f"What meme or practice were they both carrying, and how did that idea evolve between their worlds?"
         )
     if kind == "path":
         nodes = context.get("nodes") or []
         chain = " → ".join(f"r/{n.get('id')}" for n in nodes if n.get("id"))
         return (
-            f"WHY question: In {snap}{track_bit}, why does this path exist ({chain})? "
-            f"What does each hop’s bridge word tell us about how attention/language moves between these neighborhoods?"
+            f"In {snap}, this path exists: {chain}.{track_bit} "
+            f"What idea is hopping hosts along this chain, and how does the meme change at each step?"
         )
-    # focus
     nodes = context.get("nodes") or []
     nid = nodes[0]["id"] if nodes else "?"
     return (
-        f"WHY question: In {snap}{track_bit}, why does r/{nid} sit where it sits among its neighbors? "
-        f"What do the neighbor bridge words reveal about the conversational world it belongs to that month?"
+        f"In {snap}, why does r/{nid} belong with its neighbors, memetically?{track_bit} "
+        f"What idea is this community hosting, and how is that idea evolving at the edge of its neighborhood?"
     )
 
 
@@ -100,13 +109,17 @@ def cursor_explain(api_key: str, context: dict, model: str) -> str:
         LocalAgentStoreConfig,
     )
 
+    lens = random.choice(LENSES)
+    nonce = secrets.token_hex(3)
     prompt = (
         SYSTEM
         + "\n\n---\n"
         + why_question(context)
-        + "\n\nEvidence from the map (reason from this; do not dump it back):\n"
+        + "\n\nEvidence (clues about the culture, not a script to recite):\n"
         + json.dumps(context, ensure_ascii=False, indent=2)
-        + "\n\nAnswer the WHY question first. Then support it briefly with the strongest bridge-word evidence."
+        + f"\n\nFresh reading #{nonce}. Angle: {lens}\n"
+        + "Write **Answer.** then **Reason.** Reason must add evolution, not repeat Answer. "
+        + "No graph-construction talk."
     )
     # Empty sandbox under the workspace (writable); store beside it — not /var/folders.
     EXPLAIN_SANDBOX.mkdir(parents=True, exist_ok=True)
@@ -208,12 +221,20 @@ class Handler(SimpleHTTPRequestHandler):
             super().log_message(fmt, *args)
 
 
+class DualStackServer(ThreadingHTTPServer):
+    """localhost on macOS often hits ::1; bind v6+v4 so both names work."""
+    address_family = socket.AF_INET6
+    def server_bind(self):
+        self.socket.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 0)
+        super().server_bind()
+
+
 def main():
-    httpd = ThreadingHTTPServer(("127.0.0.1", PORT), Handler)
+    httpd = DualStackServer(("::", PORT), Handler)
     has = bool(os.environ.get("CURSOR_API_KEY"))
-    print(f"Meme Drift + Cursor explain → http://127.0.0.1:{PORT}/")
+    print(f"Meme Drift + Cursor explain → http://127.0.0.1:{PORT}/  (also localhost)")
     print(f"CURSOR_API_KEY {'set' if has else 'missing — paste under Explain → Key'}")
-    print(f"model={MODEL}")
+    print(f"model={MODEL}", flush=True)
     httpd.serve_forever()
 
 

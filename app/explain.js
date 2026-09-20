@@ -43,10 +43,12 @@
     #explain .explain-body.err { color: #e8a0a0; white-space: pre-wrap; }
     #explain .explain-body p { margin: 0 0 0.65em; }
     #explain .explain-body p:last-child { margin-bottom: 0; }
-    #explain .explain-saved {
-      font: 500 10.5px var(--mono); color: var(--muted);
-      text-transform: uppercase; letter-spacing: .06em;
+    #explain .explain-kicker {
+      display: block; font: 500 10.5px var(--mono); color: var(--accent);
+      letter-spacing: .08em; text-transform: uppercase; margin-bottom: 4px;
     }
+    #explain .explain-answer { font-size: 13.5px; color: var(--text); }
+    #explain .explain-reason { color: #c9cedb; }
     #explain .explain-body b, #explain .explain-body strong { color: var(--text); font-weight: 600; }
     #explain .explain-body i, #explain .explain-body em { font-style: italic; color: var(--text); }
     #explain .explain-body code {
@@ -126,13 +128,14 @@
   function formatExplain(text) {
     let s = escHtml(text || "").replace(/\r\n/g, "\n").trim();
     s = s.replace(/`([^`\n]+)`/g, "<code>$1</code>");
+    s = s.replace(/\*\*Answer\.?\*\*/gi, '<span class="explain-kicker">Answer</span>');
+    s = s.replace(/\*\*Reason\.?\*\*/gi, '<span class="explain-kicker">Reason</span>');
     s = s.replace(/\*\*([^*]+)\*\*/g, "<b>$1</b>");
     s = s.replace(/(^|[^*])\*([^*\n]+)\*(?!\*)/g, "$1<i>$2</i>");
-    // Turn leftover markdown fences / lone ** into nothing useful — strip orphan markers
     s = s.replace(/\*\*/g, "");
     const parts = s.split(/\n{2,}/).map(p => p.replace(/\n/g, " ").trim()).filter(Boolean);
     if (!parts.length) return "(empty reply)";
-    return parts.map(p => `<p>${p}</p>`).join("");
+    return parts.map((p, i) => `<p class="${i === 0 ? "explain-answer" : "explain-reason"}">${p}</p>`).join("");
   }
 
   function setExplainHtml(html, cls) {
@@ -170,17 +173,6 @@
       mention_counts: proof ? { [a]: proof[0], [b]: proof[1] } : null,
     };
   }
-
-  // Answers for the curated pairs, generated once by cache_explains.py. They show up
-  // instantly instead of making a room wait ~40s for the model, and the button still
-  // offers a live run so nobody has to take the saved text on faith.
-  const cacheKey = ctx => ctx && ctx.kind === "edge" && ctx.nodes?.length === 2
-    ? [ctx.nodes[0].id, ctx.nodes[1].id].sort().join("|") + "|" + ctx.snapshot
-    : null;
-  const cachedFor = ctx => {
-    const k = cacheKey(ctx);
-    return k && window.EXPLAINS ? window.EXPLAINS[k] : null;
-  };
 
   function buildContext() {
     const snap = D.snapshots[t];
@@ -245,17 +237,9 @@
       : ctx.kind === "edge"
         ? `Edge · r/${ctx.nodes[0]?.id} ↔ r/${ctx.nodes[1]?.id} · ${ctx.edges[0]?.bridge_word || "…"}`
         : `Focus · r/${ctx.nodes[0]?.id}`;
-    const saved = cachedFor(ctx);
-    const hint = saved
-      ? `saved:${label} (${ctx.snapshot})`
-      : `${label} (${ctx.snapshot}). Click Explain selection for a Cursor reading.`;
+    const hint = `${label} (${ctx.snapshot}). Explain writes a fresh reading each time.`;
     if (bodyEl.dataset.hint === hint) return;
     bodyEl.dataset.hint = hint;
-    if (saved) {
-      setExplainHtml(`<p class="explain-saved">Cursor on r/${ctx.nodes[0]?.id} ↔ r/${ctx.nodes[1]?.id}, ${ctx.snapshot} · saved earlier</p>` + formatExplain(saved));
-      runBtn.textContent = "Ask Cursor again, live";
-      return;
-    }
     runBtn.textContent = "Explain selection";
     bodyEl.className = "explain-body muted";
     bodyEl.textContent = hint;
@@ -274,12 +258,22 @@
     const headers = { "Content-Type": "application/json" };
     const key = getKey();
     if (key) headers["X-Cursor-Key"] = key;
+    const payload = JSON.stringify({ context: ctx });
+    const urls = [
+      "/api/explain",
+      "http://127.0.0.1:8765/api/explain",
+      "http://127.0.0.1:8767/api/explain",
+    ];
     try {
-      const res = await fetch("/api/explain", {
-        method: "POST",
-        headers,
-        body: JSON.stringify({ context: ctx }),
-      });
+      let res, lastErr;
+      for (const url of urls) {
+        try {
+          res = await fetch(url, { method: "POST", headers, body: payload });
+          lastErr = null;
+          break;
+        } catch (err) { lastErr = err; }
+      }
+      if (!res) throw lastErr || new Error("no explain server");
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         setExplainText(data.error || `Request failed (${res.status})`, "err");
@@ -289,7 +283,7 @@
       setExplainHtml(formatExplain(data.text || "(empty reply)"));
       panel.scrollIntoView({ block: "nearest", behavior: "smooth" });
     } catch (e) {
-      setExplainText("Proxy unreachable. Run: /tmp/memedrift-venv/bin/python explain_server.py", "err");
+      setExplainText("Explain server not on this page. Open http://127.0.0.1:8765/ and try again.", "err");
     } finally {
       bodyEl.dataset.locked = "0";
       runBtn.disabled = !buildContext();
