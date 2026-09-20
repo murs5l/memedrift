@@ -43,6 +43,10 @@
     #explain .explain-body.err { color: #e8a0a0; white-space: pre-wrap; }
     #explain .explain-body p { margin: 0 0 0.65em; }
     #explain .explain-body p:last-child { margin-bottom: 0; }
+    #explain .explain-saved {
+      font: 500 10.5px var(--mono); color: var(--muted);
+      text-transform: uppercase; letter-spacing: .06em;
+    }
     #explain .explain-body b, #explain .explain-body strong { color: var(--text); font-weight: 600; }
     #explain .explain-body i, #explain .explain-body em { font-style: italic; color: var(--text); }
     #explain .explain-body code {
@@ -167,6 +171,17 @@
     };
   }
 
+  // Answers for the curated pairs, generated once by cache_explains.py. They show up
+  // instantly instead of making a room wait ~40s for the model, and the button still
+  // offers a live run so nobody has to take the saved text on faith.
+  const cacheKey = ctx => ctx && ctx.kind === "edge" && ctx.nodes?.length === 2
+    ? [ctx.nodes[0].id, ctx.nodes[1].id].sort().join("|") + "|" + ctx.snapshot
+    : null;
+  const cachedFor = ctx => {
+    const k = cacheKey(ctx);
+    return k && window.EXPLAINS ? window.EXPLAINS[k] : null;
+  };
+
   function buildContext() {
     const snap = D.snapshots[t];
     if (picked) {
@@ -230,9 +245,18 @@
       : ctx.kind === "edge"
         ? `Edge · r/${ctx.nodes[0]?.id} ↔ r/${ctx.nodes[1]?.id} · ${ctx.edges[0]?.bridge_word || "…"}`
         : `Focus · r/${ctx.nodes[0]?.id}`;
-    const hint = `${label} (${ctx.snapshot}). Click Explain selection for a Cursor reading.`;
+    const saved = cachedFor(ctx);
+    const hint = saved
+      ? `saved:${label} (${ctx.snapshot})`
+      : `${label} (${ctx.snapshot}). Click Explain selection for a Cursor reading.`;
     if (bodyEl.dataset.hint === hint) return;
     bodyEl.dataset.hint = hint;
+    if (saved) {
+      setExplainHtml(`<p class="explain-saved">Cursor on r/${ctx.nodes[0]?.id} ↔ r/${ctx.nodes[1]?.id}, ${ctx.snapshot} · saved earlier</p>` + formatExplain(saved));
+      runBtn.textContent = "Ask Cursor again, live";
+      return;
+    }
+    runBtn.textContent = "Explain selection";
     bodyEl.className = "explain-body muted";
     bodyEl.textContent = hint;
   }
@@ -245,6 +269,7 @@
     panel.scrollIntoView({ block: "nearest", behavior: "smooth" });
     bodyEl.dataset.locked = "1";
     setExplainText("Asking Cursor… (first reply can take ~30–60s)", "muted");
+    runBtn.textContent = "Explain selection";
     runBtn.disabled = true;
     const headers = { "Content-Type": "application/json" };
     const key = getKey();

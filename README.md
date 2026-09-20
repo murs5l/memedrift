@@ -37,8 +37,25 @@ the infection curve run across 80 months:
 - `openai` starts inside r/OpenAI, spends years almost entirely in AI hosts, then gets co-hosted by Finance (r/stocks, r/StockMarket) — **the same word living in two far-apart neighbourhoods**, capability talk and market-object talk.
 - `claude` records a **semantic takeover**: early on it pins to r/GTA (Claude Speed), years later the identical string sits in AI/Coding hosts.
 - r/ChatGPT, r/LocalLLaMA and r/ClaudeAI **do not exist** in 2020 and pop into the map mid-timeline.
+- **Strange bedfellows:** two subs nobody would file together can still sit close. r/Parenting and r/dogs have been linked in **76 of 80 months** by one word — `potty` — because toddlers and puppies get trained with the same language. In December 2025, of 508 live subs, exactly those two said it.
 
 Every claim on screen is falsifiable: click a line and you get the exact word, the mention counts on both sides, and the posts behind it.
+
+## Strange bedfellows
+
+The judge question this answers: *can you find a case where two unrelated subreddits get close, and explain it?*
+
+Raw "strongest cross-theme edge" is the wrong ranking. It surfaces spam (`vallevirtual` linking r/Economics to r/europe at 0.713 similarity, 11 mentions in one month). `find_pairs.py` instead keeps pairs that are **persistent** (≥6 months), bridged by a **real word** (used in ≥8 subs), **not tautological** (`anime` linking r/anime to r/anime_irl is dropped), and **unrelated** (different themes, few shared neighbours). Then a human picks the ones that read out loud.
+
+Click **Strange bedfellows** in the panel, or open **Findings → potty — parents and dog owners**. The line, mention counts, and post titles load; **Explain with Cursor** answers *why* from that evidence (cached for the twelve curated pairs so a demo never waits 40 seconds).
+
+| pair | bridge | months | the punchline |
+|---|---|---|---|
+| r/Parenting [Life] ~ r/dogs [General] | `potty` | 76 | toddlers and puppies, same training. 22 vs 4 mentions in 2025-12. |
+| r/CozyPlaces [Life] ~ r/battlestations [Hardware] | `cozy` | 47 | a snug room and a snug desk. The word carries 26% of the similarity; 8% shared neighbours. |
+| r/JuJutsuKaisen [Culture] ~ r/cursedcomments [General] | `cursed` | 27 | cursed energy vs cursed images — a homonym collision, same shape as `claude`. |
+
+Twelve pairs ship in `data/pairs.js`. Rebuild with `python3 find_pairs.py`. Pre-bake explanations with `python3 cache_explains.py` while `explain_server.py` is running.
 
 ## Quick start
 
@@ -93,13 +110,18 @@ repo, serve it, and the map works with no Python at all.
 |---|---|
 | `build_data.py` | the whole pipeline: fetch → tokenize → TF-IDF → graph → communities → `data.js` |
 | `build_partial.py` | rebuilds `data.js` from the cache alone, so the map fills in while a long fetch is still running |
+| `find_pairs.py` | ranks "strange bedfellows" from `data.js` only — no rebuild, no network |
+| `cache_explains.py` | pre-bakes Cursor answers for those pairs into `data/explains.js` |
 | `export_parquet.py` | bulk export of posts / subreddits / links to `dataset/*.parquet` |
 | `explain_server.py` | static server + `/api/explain`, backed by the Cursor SDK |
 | `index.html` / `index3d.html` | the 2D and 3D maps (same data, same spring law, same proof cards) |
 | `app/extras.js` | shortest-path "connect two subreddits", reset bar, first-visit tour — shared by both pages |
+| `app/pairs.js` | **Strange bedfellows** chip list — click a pair, get the line and the proof |
 | `app/story.js` · `story.css` | **Findings**: guided paths that drive the live map through the existing globals |
-| `app/explain.js` | the Explain panel and its API-key handling |
+| `app/explain.js` | the Explain panel; shows a cached answer instantly when one exists |
 | `data/data.js` | the graph payload (~85 MB) |
+| `data/pairs.js` | twelve curated strange-bedfellow pairs |
+| `data/explains.js` | pre-baked Cursor answers for those pairs |
 | `data/posts/` | per-month post titles (~241 MB), fetched on demand, never on first paint |
 | `monthly/` | a last-12-months mirror with its own `app/` + `data/`; shares `cache/` |
 

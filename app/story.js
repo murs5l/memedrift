@@ -263,7 +263,90 @@
     ],
   };
 
-  const STORIES = [claudeStory, openaiStory];
+  // The pair case: two subreddits nobody would file together, held together by one word.
+  // Numbers below come from find_pairs.py's ranking of data/data.js.
+  const bedfellowsStory = {
+    id: "strange-bedfellows",
+    kicker: "A finding",
+    menuTitle: "potty — parents and dog owners",
+    menuBlurb: "Two unrelated subs, one shared word",
+    finding: "Unrelated communities can share a vocabulary without sharing a topic.",
+    why: "<b>r/Parenting</b> and <b>r/dogs</b> sit in different themes — Life vs General — yet the map has linked them in <b>76 of 80 months</b>. The word doing it is <b>potty</b>, because toddlers and puppies get trained with the same language.",
+    title: "Strangers with a shared word",
+    steps: [
+      {
+        title: "Two subs nobody would file together",
+        body: "<b>r/Parenting</b> is a Life sub. <b>r/dogs</b> is General. Different neighbourhoods, different everyday vocabulary — one is raising kids, the other is raising pets.",
+        lit: [".time"],
+        lock: true,
+        actions: [
+          { op: "reset" },
+          { op: "setTime", snap: "2025-12" },
+          { op: "clearEdge" },
+          { op: "annotate", ids: ["Parenting", "dogs"] },
+          { op: "waitMs", ms: 350 },
+          { op: "zoomTo", ids: ["Parenting", "dogs"], neighbors: false, pad: 240, maxK: 1.5 },
+          { op: "waitMs", ms: 400 },
+        ],
+      },
+      {
+        title: "And yet, a line",
+        body: "There it is — and it isn’t a fluke of one snapshot. This link is present in <b>76 of the 80 months</b>.",
+        lit: ["#proof", ".time"],
+        lock: true,
+        actions: [
+          { op: "setTime", snap: "2025-12" },
+          { op: "pickEdge", a: "Parenting", b: "dogs" },
+          { op: "annotate", ids: ["Parenting", "dogs"] },
+          { op: "waitMs", ms: 300 },
+          { op: "zoomTo", ids: ["Parenting", "dogs"], neighbors: false, pad: 240, maxK: 1.5 },
+          { op: "waitMs", ms: 350 },
+        ],
+      },
+      {
+        title: "The word is potty",
+        body: "r/Parenting says it <b>22×</b> in its last 100 posts, r/dogs <b>4×</b>. Read the titles below: “Potty training at daycare” sits next to “Old dog losing potty training.” They also share <i>peeing</i>, <i>daycare</i>, <i>toys</i>.",
+        lit: ["#proof"],
+        lock: true,
+        actions: [
+          { op: "pickEdge", a: "Parenting", b: "dogs" },
+          { op: "spot", sel: "#proof" },
+          { op: "waitMs", ms: 300 },
+        ],
+      },
+      {
+        title: "Who else talks like this?",
+        body: "Track it across the whole map: of the 508 subreddits live this month, <b>exactly these two</b> say it. The word never became a topic — it stayed with whoever is training something small and stubborn.",
+        lit: ["#q", "#spread", ".time"],
+        lock: true,
+        actions: [
+          { op: "clearEdge" },
+          { op: "track", term: "potty" },
+          { op: "clearAnnot" },
+          { op: "waitMs", ms: 300 },
+          { op: "fit" },
+          { op: "waitMs", ms: 400 },
+        ],
+      },
+      {
+        title: "Now ask why",
+        body: "The edge is loaded into <b>Explain</b>. Cursor answers from the evidence on screen — themes, the bridge word, the mention counts — and is told never to claim one sub caused the other.",
+        lit: ["#proof", "#explain"],
+        lock: false,
+        handoff: true,
+        actions: [
+          { op: "clearTrack" },
+          { op: "setTime", snap: "2025-12" },
+          { op: "pickEdge", a: "Parenting", b: "dogs" },
+          { op: "spot", sel: "#explain" },
+          { op: "waitMs", ms: 300 },
+          { op: "zoomTo", ids: ["Parenting", "dogs"], neighbors: false, pad: 240, maxK: 1.5 },
+        ],
+      },
+    ],
+  };
+
+  const STORIES = [bedfellowsStory, claudeStory, openaiStory];
   let active = null;
   let step = 0;
   let saved = null;
@@ -369,6 +452,18 @@
     return byId.has(id);
   }
 
+  function edgeBetween(a, b) {
+    if (typeof D === "undefined" || !D.links) return null;
+    return D.links.find(l => {
+      const x = l.source.id ?? l.source, y = l.target.id ?? l.target;
+      return (x === a && y === b) || (x === b && y === a);
+    }) || null;
+  }
+
+  // pairs.js frames its two subreddits with this too, rather than keeping a second copy
+  // of the 2D/3D camera maths.
+  window.zoomToNodes = zoomToNodes;
+
   function zoomToNodes(ids, padExtra, withNeighbors = true, maxKOpt) {
     if (!ids || !ids.length) {
       if (typeof fit === "function") fit(true);
@@ -471,6 +566,26 @@
         }
         case "clearFocus": {
           focus = null;
+          if (typeof restyle === "function") restyle();
+          break;
+        }
+        case "pickEdge": {
+          const l = edgeBetween(a.a, a.b);
+          if (!l) break;
+          for (const id of [a.a, a.b]) {
+            const n = byId.get(id);
+            if (n && typeof activeCats !== "undefined") activeCats.add(n.cat);
+          }
+          focus = null;
+          picked = l;
+          pathLinks = [l];   // lights this one line and dims the rest, like the connect chain
+          if (typeof update === "function") update();
+          else if (typeof restyle === "function") restyle();
+          break;
+        }
+        case "clearEdge": {
+          picked = null;
+          pathLinks = null;
           if (typeof restyle === "function") restyle();
           break;
         }
