@@ -5,19 +5,23 @@
   2. Put it in .env as CURSOR_API_KEY=...  (or paste under Explain → Key)
   3. /tmp/memedrift-venv/bin/python explain_server.py
 
-Each explain runs Agent.prompt() in an empty temp cwd so the agent cannot
-edit this repo — it only answers from the JSON context in the prompt.
+Each explain runs Agent.prompt() in an empty sandbox cwd under .explain-work
+so the agent cannot edit this repo — it only answers from the JSON context
+in the prompt. (System /var/folders temp is remapped by Cursor and EPERM's
+on sdk-agent-store mkdir; keep cwd + store inside the workspace.)
 """
 from __future__ import annotations
 
 import json
 import os
-import tempfile
 import traceback
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
+EXPLAIN_WORK = ROOT / ".explain-work"
+EXPLAIN_SANDBOX = EXPLAIN_WORK / "sandbox"
+EXPLAIN_STORE = EXPLAIN_WORK / "store"
 PORT = int(os.environ.get("PORT", "8765"))
 MODEL = os.environ.get("CURSOR_MODEL", "composer-2.5")
 
@@ -89,7 +93,12 @@ load_dotenv()
 
 
 def cursor_explain(api_key: str, context: dict, model: str) -> str:
-    from cursor_sdk import Agent, AgentOptions, LocalAgentOptions
+    from cursor_sdk import (
+        Agent,
+        AgentOptions,
+        LocalAgentOptions,
+        LocalAgentStoreConfig,
+    )
 
     prompt = (
         SYSTEM
@@ -99,18 +108,25 @@ def cursor_explain(api_key: str, context: dict, model: str) -> str:
         + json.dumps(context, ensure_ascii=False, indent=2)
         + "\n\nAnswer the WHY question first. Then support it briefly with the strongest bridge-word evidence."
     )
-    # Empty sandbox cwd: agent has nothing to edit; answer from the prompt only.
-    with tempfile.TemporaryDirectory(prefix="memedrift-explain-") as tmp:
-        result = Agent.prompt(
-            prompt,
-            AgentOptions(
-                api_key=api_key,
-                model=model,
-                local=LocalAgentOptions(cwd=tmp),
-                # Answer-only: block edit/shell tools (empty cwd is the real safety net).
-                disallowed_tools=["piBash", "piWrite", "piEdit", "edit", "delete"],
+    # Empty sandbox under the workspace (writable); store beside it — not /var/folders.
+    EXPLAIN_SANDBOX.mkdir(parents=True, exist_ok=True)
+    EXPLAIN_STORE.mkdir(parents=True, exist_ok=True)
+    result = Agent.prompt(
+        prompt,
+        AgentOptions(
+            api_key=api_key,
+            model=model,
+            local=LocalAgentOptions(
+                cwd=str(EXPLAIN_SANDBOX),
+                store=LocalAgentStoreConfig(
+                    type="jsonl",
+                    root_dir=str(EXPLAIN_STORE),
+                ),
             ),
-        )
+            # Answer-only: block edit/shell tools (empty cwd is the real safety net).
+            disallowed_tools=["piBash", "piWrite", "piEdit", "edit", "delete"],
+        ),
+    )
     if result.status == "error":
         err = getattr(result, "error", None)
         raise RuntimeError(f"Cursor agent run failed: {err or result.status}")

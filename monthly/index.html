@@ -141,20 +141,28 @@ const sim = d3.forceSimulation()
   .force("collide", d3.forceCollide().radius(d => radius(d.subs) + 4).iterations(1))
   .force("link", d3.forceLink().id(d => d.id).distance(restLength).strength(l => .1 + .9 * l.value / vmax))
   .on("tick", () => {
-    link.attr("x1", l => l.source.x).attr("y1", l => l.source.y).attr("x2", l => l.target.x).attr("y2", l => l.target.y);
-    node.attr("cx", d => d.x).attr("cy", d => d.y);
-    halo.attr("cx", d => d.x).attr("cy", d => d.y);
-    // Skip labels that are hidden — most of the 512 stay at opacity 0.
-    label.each(function (d) {
-      if (+this.getAttribute("opacity") === 0) return;
-      this.setAttribute("x", d.x);
-      this.setAttribute("y", d.y - radius(d.subs) - 4);
-    });
-    key.attr("x", l => (l.source.x + l.target.x) / 2).attr("y", l => (l.source.y + l.target.y) / 2 - 3);
+    syncGeom();
   });
 addEventListener("resize", () => sim.force("center").x(W() / 2).y(H() / 2));
 
 let link = linkG.selectAll("line"), node = nodeG.selectAll("circle"), halo = haloG.selectAll("circle"), label = labelG.selectAll("text"), key = keyG.selectAll("text");
+// Hidden labels skip full work when possible, but Surprise Me / focus can reveal
+// labels+keys while the sim is cool (no ticks) — syncGeom places them immediately
+// so they don't stack at (0,0) as garbled text / phantom rays to the origin.
+const placeLabel = (el, d) => {
+  el.setAttribute("x", d.x);
+  el.setAttribute("y", d.y - radius(d.subs) - 4);
+};
+function syncGeom() {
+  link.attr("x1", l => l.source.x).attr("y1", l => l.source.y).attr("x2", l => l.target.x).attr("y2", l => l.target.y);
+  node.attr("cx", d => d.x).attr("cy", d => d.y);
+  halo.attr("cx", d => d.x).attr("cy", d => d.y);
+  label.each(function (d) {
+    if (+this.getAttribute("opacity") === 0) return;
+    placeLabel(this, d);
+  });
+  key.attr("x", l => (l.source.x + l.target.x) / 2).attr("y", l => (l.source.y + l.target.y) / 2 - 3);
+}
 
 // --- helpers -------------------------------------------------------------
 const alive = n => n.terms[t].length && activeCats.has(n.cat);
@@ -293,9 +301,13 @@ function setTime(x) {
 function styleFromHeats(heats, hot, hmax) {
   const fl = focus ? linksOf(focus) : (pathLinks || []);
   const near = focus ? new Set([focus, ...fl.map(l => other(l, focus).id)])
-             : pathLinks ? new Set(pathLinks.flatMap(l => [l.source.id, l.target.id])) : null;
-  const pathSet = pathLinks ? new Set(pathLinks) : null;
-  const lit = l => focus ? l.source.id === focus || l.target.id === focus : !!(pathSet && pathSet.has(l));
+             : pathLinks ? new Set(pathLinks.flatMap(l => [l.source.id ?? l.source, l.target.id ?? l.target])) : null;
+  const pathKey = l => {
+    const a = l.source.id ?? l.source, b = l.target.id ?? l.target;
+    return a < b ? a + "|" + b : b + "|" + a;
+  };
+  const pathSet = pathLinks ? new Set(pathLinks.map(pathKey)) : null;
+  const lit = l => focus ? l.source.id === focus || l.target.id === focus : !!(pathSet && pathSet.has(pathKey(l)));
   const show = n => (!near || near.has(n.id)) && (!query || hot.has(n.id));
   const labelled = n => hot.has(n.id) || near?.has(n.id) || radius(n.subs) * k > 9 || k > 2.2;
   const hget = n => (heats && heats.get(n.id)) || 0;
@@ -303,12 +315,20 @@ function styleFromHeats(heats, hot, hmax) {
   halo.attr("r", n => hot.has(n.id) ? radius(n.subs) + 4 + 26 * hget(n) / hmax : 0);
   node.attr("opacity", n => show(n) ? 1 : .12)
       .attr("stroke", n => hot.has(n.id) ? "var(--accent)" : focus === n.id || (pathLinks && near?.has(n.id)) ? "#fff" : "var(--ink)");
-  label.attr("opacity", n => show(n) && labelled(n) ? 1 : 0);
+  label.each(function (n) {
+    const on = show(n) && labelled(n);
+    this.setAttribute("opacity", on ? 1 : 0);
+    if (on) placeLabel(this, n);
+  });
   link.attr("stroke-opacity", l => {
     if (near) return lit(l) ? .9 : .02;
     if (query) return hot.has(l.source.id) && hot.has(l.target.id) ? .8 : .03;
     return .08 + .4 * l.value / vmax;
   }).attr("stroke", l => (query && hot.has(l.source.id) && hot.has(l.target.id)) || (near && lit(l)) ? "var(--accent)" : "#5b6b86")
+    .attr("stroke-width", l => {
+      const base = 1 + 4 * l.value / vmax;
+      return (near && lit(l)) || l === picked ? Math.max(base, 2.2) : base;
+    })
     .style("pointer-events", l => (near && !lit(l)) || (query && !(hot.has(l.source.id) && hot.has(l.target.id))) ? "none" : "stroke");
   return fl;
 }
@@ -320,7 +340,11 @@ function restyleLabelsOnly() {
              : pathLinks ? new Set(pathLinks.flatMap(l => [l.source.id, l.target.id])) : null;
   const show = n => (!near || near.has(n.id)) && (!query || hot.has(n.id));
   const labelled = n => hot.has(n.id) || near?.has(n.id) || radius(n.subs) * k > 9 || k > 2.2;
-  label.attr("opacity", n => show(n) && labelled(n) ? 1 : 0);
+  label.each(function (n) {
+    const on = show(n) && labelled(n);
+    this.setAttribute("opacity", on ? 1 : 0);
+    if (on) placeLabel(this, n);
+  });
 }
 
 function restyleScrub(tChanged) {
@@ -340,7 +364,7 @@ function restyle() {
 
   key = key.data(fl, l => l.source.id + "|" + l.target.id); key.exit().remove();
   key = key.enter().append("text").attr("class", "key").merge(key).text(l => l.shared[t][0] || "");
-  sim.tick(0);
+  syncGeom();
 
   const total = D.nodes.filter(alive).length;
   $("#count").textContent = query ? `${[...hot].filter(id => alive(byId.get(id))).length} / ${total} subs say it` : "";
@@ -358,6 +382,7 @@ function maybeDrawPanels(fl, force) {
   if (fl) {
     key = key.data(fl, l => l.source.id + "|" + l.target.id); key.exit().remove();
     key = key.enter().append("text").attr("class", "key").merge(key).text(l => l.shared[t][0] || "");
+    syncGeom();
   }
   drawFocus(fl || (focus ? linksOf(focus) : (pathLinks || [])));
   drawProof();
